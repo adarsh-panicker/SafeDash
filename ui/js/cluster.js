@@ -48,10 +48,48 @@ const state = {
   odometer_km:      0,
   trip_distance_km: 0,
 
+  /* EV Dynamic Performance */
+  power_kw: 0,
+  g_lat: 0,
+  g_long: 0,
+
+  /* TPMS (FMVSS 138) */
+  tpms: { fl: 36.1, fr: 36.0, rl: 35.6, rr: 35.7 },
+
+  /* Navigation */
+  nav: {
+    dist_m: 450,
+    heading: 315,
+    maneuver: 'SLIGHT_RIGHT',
+    street: 'QNX Innovation Expressway'
+  },
+
+  /* EV Dynamic Performance */
+  power_kw: 0,
+  g_lat: 0,
+  g_long: 0,
+
+  /* TPMS (FMVSS 138) */
+  tpms: { fl: 36.1, fr: 36.0, rl: 35.6, rr: 35.7 },
+
+  /* Navigation */
+  nav: {
+    dist_m: 450,
+    heading: 315,
+    maneuver: 'SLIGHT_RIGHT',
+    street: 'QNX Innovation Expressway'
+  },
+
   /* Stats */
   frame_count: 0,
   error_count: 0,
 };
+
+window.__rightGaugeMode = 'rpm'; // 'rpm' or 'power'
+
+
+window.__rightGaugeMode = 'rpm'; // 'rpm' or 'power'
+
 
 /* Smooth display values (interpolated) */
 const disp = { ...state };
@@ -77,12 +115,14 @@ const C = {
    ═══════════════════════════════════════════════════════════════ */
 class ClusterRenderer {
   constructor () {
-    this.spdCanvas  = document.getElementById('speedometer-canvas');
-    this.rpmCanvas  = document.getElementById('rpm-canvas');
-    this.tempCanvas = document.getElementById('temp-canvas');
-    this.spdCtx     = this.spdCanvas.getContext('2d');
-    this.rpmCtx     = this.rpmCanvas.getContext('2d');
-    this.tempCtx    = this.tempCanvas.getContext('2d');
+    this.spdCanvas    = document.getElementById('speedometer-canvas');
+    this.rpmCanvas    = document.getElementById('rpm-canvas');
+    this.tempCanvas   = document.getElementById('temp-canvas');
+    this.gforceCanvas = document.getElementById('gforce-canvas');
+    this.spdCtx       = this.spdCanvas.getContext('2d');
+    this.rpmCtx       = this.rpmCanvas.getContext('2d');
+    this.tempCtx      = this.tempCanvas.getContext('2d');
+    this.gforceCtx    = this.gforceCanvas ? this.gforceCanvas.getContext('2d') : null;
 
     this._dpr  = window.devicePixelRatio || 1;
     this._raf  = null;
@@ -109,6 +149,7 @@ class ClusterRenderer {
     this._setCanvas(this.spdCanvas, Math.max(300, spdSize), Math.max(300, spdSize));
     this._setCanvas(this.rpmCanvas, Math.max(300, rpmSize), Math.max(300, rpmSize));
     this._setCanvas(this.tempCanvas, 140, 100);
+    if (this.gforceCanvas) this._setCanvas(this.gforceCanvas, 60, 60);
   }
 
   _setCanvas (canvas, w, h) {
@@ -139,7 +180,9 @@ class ClusterRenderer {
     const t = clamp(dt / 1000 * 10, 0, 0.3);  // ~10% per frame @ 60fps
     const lerpc = (key) => { disp[key] = lerp(disp[key] ?? 0, state[key] ?? 0, t); };
     ['speed_kmh','rpm','throttle_pct','brake_pct','soc_pct','regen_kw',
-     'engine_temp_c','acc_distance_m','voltage_v','batt_temp_c'].forEach(lerpc);
+     'engine_temp_c','acc_distance_m','voltage_v','batt_temp_c','power_kw','g_lat','g_long'].forEach(lerpc);
+    disp.tpms = state.tpms;
+    disp.nav  = state.nav;
     // Booleans — instant
     ['abs_active','collision','lane_dep_L','lane_dep_R',
      'bspot_L','bspot_R','airbag_fault'].forEach(k => { disp[k] = state[k]; });
@@ -160,8 +203,17 @@ class ClusterRenderer {
     this.tempCtx.clearRect(0, 0, W_tmp, H_tmp);
 
     this.drawSpeedometer(this.spdCtx, disp.speed_kmh, 240, W_spd, H_spd);
-    this.drawRPMGauge(this.rpmCtx, disp.rpm, 8000, W_rpm, H_rpm);
+    if (window.__rightGaugeMode === 'power') {
+      this.drawPowerGauge(this.rpmCtx, disp.power_kw, W_rpm, H_rpm);
+    } else {
+      this.drawRPMGauge(this.rpmCtx, disp.rpm, 8000, W_rpm, H_rpm);
+    }
     this.drawTempGauge(this.tempCtx, disp.engine_temp_c, 40, 130, W_tmp, H_tmp);
+    if (this.gforceCtx) {
+      this.drawGForceMeter(this.gforceCtx, disp.g_lat, disp.g_long);
+    }
+    this.drawTPMS(disp.tpms);
+    this.drawNavCard(disp.nav);
 
     this.drawGearIndicator(disp.gear);
     this.drawBatteryBar(disp.soc_pct, disp.regen_kw);
@@ -489,6 +541,454 @@ class ClusterRenderer {
     ctx.fillText('RPM x 1000', cx, cy - R * 0.16 + W * 0.14);
   }
 
+  /* ── Modern EV Power kW & Regen Delivery Gauge (Taycan / Audi e-tron GT) ── */
+  drawPowerGauge (ctx, powerKw, W, H) {
+    const cx = W / 2, cy = H / 2 + H * 0.02;
+    const R  = Math.min(W, H) * 0.44;
+    const startAngle = toRad(140);
+    const endAngle   = toRad(400);
+    const zeroAngle  = toRad(205); // Zero power coasting point
+    const arcRange   = endAngle - startAngle;
+
+    // 1. Outer Bezel & Dark Dial Face
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 14, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(80, 100, 140, 0.35)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    const dialGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, R);
+    dialGrad.addColorStop(0,   'rgba(18, 26, 48, 0.55)');
+    dialGrad.addColorStop(0.7, 'rgba(10, 15, 30, 0.85)');
+    dialGrad.addColorStop(1,   'rgba(6, 10, 20, 0.95)');
+    ctx.fillStyle = dialGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Track background
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, startAngle, endAngle);
+    ctx.strokeStyle = 'rgba(26, 38, 70, 0.65)';
+    ctx.lineWidth   = 16;
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+
+    // 3. Regen Zone (-100 to 0 kW) and Power Zone (0 to 400 kW)
+    // Clamp power between -100 and +400 kW
+    const pwrClamped = clamp(powerKw, -100, 400);
+    let pwrAngle;
+    if (pwrClamped < 0) {
+      // Regen sweep from zeroAngle back to startAngle
+      const frac = Math.abs(pwrClamped) / 100;
+      pwrAngle = zeroAngle - (zeroAngle - startAngle) * frac;
+      ctx.save();
+      ctx.shadowColor = C.green;
+      ctx.shadowBlur  = 16;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, pwrAngle, zeroAngle);
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth   = 16;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      // Power delivery sweep from zeroAngle to endAngle
+      const frac = pwrClamped / 400;
+      pwrAngle = zeroAngle + (endAngle - zeroAngle) * frac;
+      const grad = ctx.createLinearGradient(cx - R, cy, cx + R, cy);
+      grad.addColorStop(0,   C.cyan);
+      grad.addColorStop(0.8, C.cyan);
+      grad.addColorStop(1,   C.red);
+      ctx.save();
+      ctx.shadowColor = pwrClamped > 250 ? C.red : C.cyan;
+      ctx.shadowBlur  = 16;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, zeroAngle, pwrAngle);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth   = 16;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 4. Dial Scale Ticks
+    const majorTicks = [
+      { val: -100, angle: startAngle, label: '-100' },
+      { val: 0,    angle: zeroAngle,  label: '0' },
+      { val: 100,  angle: zeroAngle + (endAngle - zeroAngle) * 0.25, label: '100' },
+      { val: 200,  angle: zeroAngle + (endAngle - zeroAngle) * 0.50, label: '200' },
+      { val: 300,  angle: zeroAngle + (endAngle - zeroAngle) * 0.75, label: '300' },
+      { val: 400,  angle: endAngle,   label: '400' }
+    ];
+
+    majorTicks.forEach(t => {
+      const inner = R - 18;
+      const outer = R - 6;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(t.angle) * inner, cy + Math.sin(t.angle) * inner);
+      ctx.lineTo(cx + Math.cos(t.angle) * outer, cy + Math.sin(t.angle) * outer);
+      ctx.strokeStyle = t.val < 0 ? C.green : 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth   = 2.2;
+      ctx.stroke();
+
+      const lR = R - 32;
+      ctx.font = Math.round(W * 0.042) + 'px sans-serif';
+      ctx.fillStyle   = t.val < 0 ? C.green : 'rgba(140, 170, 210, 0.85)';
+      ctx.textAlign   = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(t.label, cx + Math.cos(t.angle) * lR, cy + Math.sin(t.angle) * lR);
+    });
+
+    // 5. Needle
+    const nLen = R - 16;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(pwrAngle);
+    ctx.shadowColor = pwrClamped < 0 ? C.green : (pwrClamped > 250 ? C.red : C.cyan);
+    ctx.shadowBlur  = 14;
+    ctx.beginPath();
+    ctx.moveTo(-16, 0);
+    ctx.lineTo(nLen, 0);
+    ctx.strokeStyle = pwrClamped < 0 ? C.green : (pwrClamped > 250 ? C.red : C.cyan);
+    ctx.lineWidth   = 3.5;
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+    ctx.restore();
+
+    // 6. Pivot
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fillStyle = pwrClamped < 0 ? C.green : C.cyan;
+    ctx.fill();
+
+    // 7. Digital Readout
+    ctx.save();
+    ctx.font = '800 ' + Math.round(W * 0.20) + 'px sans-serif';
+    ctx.fillStyle = pwrClamped < 0 ? C.green : '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor  = pwrClamped < 0 ? C.green : C.cyan;
+    ctx.shadowBlur   = 16;
+    const sign = pwrClamped > 0 ? '+' : '';
+    ctx.fillText(`${sign}${Math.round(pwrClamped)}`, cx, cy - R * 0.16);
+    ctx.restore();
+
+    ctx.font = Math.round(W * 0.045) + 'px sans-serif';
+    ctx.fillStyle = pwrClamped < 0 ? C.green : 'rgba(140, 170, 210, 0.8)';
+    ctx.textAlign = 'center';
+    ctx.fillText(pwrClamped < 0 ? 'REGEN kW' : 'POWER kW', cx, cy - R * 0.16 + W * 0.14);
+  }
+
+  /* ── 2D G-Force Friction Circle Meter ──────────────────────────────────── */
+  drawGForceMeter (ctx, gLat, gLong) {
+    const W = 60, H = 60;
+    const cx = W / 2, cy = H / 2;
+    const R  = 24;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Outer circle (1.0 G)
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Inner circle (0.5 G)
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.5, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.12)';
+    ctx.stroke();
+
+    // Crosshairs
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.beginPath();
+    ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy);
+    ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R);
+    ctx.stroke();
+
+    // Dynamic G-Dot
+    const dotX = clamp(cx + (gLat / 1.2) * R, cx - R + 2, cx + R - 2);
+    const dotY = clamp(cy - (gLong / 1.2) * R, cy - R + 2, cy + R - 2);
+
+    ctx.save();
+    ctx.shadowColor = C.cyan;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = C.cyan;
+    ctx.fill();
+    ctx.restore();
+
+    const gValEl = document.getElementById('gforce-val');
+    if (gValEl) {
+      const mag = Math.sqrt(gLat * gLat + gLong * gLong);
+      gValEl.textContent = `${mag.toFixed(2)} G`;
+    }
+  }
+
+  /* ── Tire Pressure Monitoring System (TPMS) ───────────────────────────── */
+  drawTPMS (tpms) {
+    if (!tpms) return;
+    const flEl = document.getElementById('tpms-fl-psi');
+    const frEl = document.getElementById('tpms-fr-psi');
+    const rlEl = document.getElementById('tpms-rl-psi');
+    const rrEl = document.getElementById('tpms-rr-psi');
+
+    if (flEl && tpms.fl !== undefined) flEl.textContent = Number(tpms.fl).toFixed(1);
+    if (frEl && tpms.fr !== undefined) frEl.textContent = Number(tpms.fr).toFixed(1);
+    if (rlEl && tpms.rl !== undefined) rlEl.textContent = Number(tpms.rl).toFixed(1);
+    if (rrEl && tpms.rr !== undefined) rrEl.textContent = Number(tpms.rr).toFixed(1);
+  }
+
+  /* ── Turn-by-Turn Navigation HUD Card ──────────────────────────────────── */
+  drawNavCard (nav) {
+    if (!nav) return;
+    const distEl = document.getElementById('nav-dist');
+    const compEl = document.getElementById('nav-compass');
+    const strEl  = document.getElementById('nav-street');
+    const iconEl = document.getElementById('nav-icon');
+
+    if (distEl && nav.dist_m !== undefined) distEl.textContent = `In ${nav.dist_m} m`;
+    if (compEl && nav.heading !== undefined) compEl.textContent = `${nav.heading}° NW`;
+    if (strEl && nav.street) strEl.textContent = nav.street;
+    if (iconEl && nav.maneuver) {
+      iconEl.textContent = nav.maneuver === 'SLIGHT_RIGHT' ? '↱' : (nav.maneuver === 'SLIGHT_LEFT' ? '↰' : '⬆');
+    }
+  }
+
+
+  /* ── Modern EV Power kW & Regen Delivery Gauge (Taycan / Audi e-tron GT) ── */
+  drawPowerGauge (ctx, powerKw, W, H) {
+    const cx = W / 2, cy = H / 2 + H * 0.02;
+    const R  = Math.min(W, H) * 0.44;
+    const startAngle = toRad(140);
+    const endAngle   = toRad(400);
+    const zeroAngle  = toRad(205); // Zero power coasting point
+    const arcRange   = endAngle - startAngle;
+
+    // 1. Outer Bezel & Dark Dial Face
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 14, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(80, 100, 140, 0.35)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    const dialGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, R);
+    dialGrad.addColorStop(0,   'rgba(18, 26, 48, 0.55)');
+    dialGrad.addColorStop(0.7, 'rgba(10, 15, 30, 0.85)');
+    dialGrad.addColorStop(1,   'rgba(6, 10, 20, 0.95)');
+    ctx.fillStyle = dialGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Track background
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, startAngle, endAngle);
+    ctx.strokeStyle = 'rgba(26, 38, 70, 0.65)';
+    ctx.lineWidth   = 16;
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+
+    // 3. Regen Zone (-100 to 0 kW) and Power Zone (0 to 400 kW)
+    // Clamp power between -100 and +400 kW
+    const pwrClamped = clamp(powerKw, -100, 400);
+    let pwrAngle;
+    if (pwrClamped < 0) {
+      // Regen sweep from zeroAngle back to startAngle
+      const frac = Math.abs(pwrClamped) / 100;
+      pwrAngle = zeroAngle - (zeroAngle - startAngle) * frac;
+      ctx.save();
+      ctx.shadowColor = C.green;
+      ctx.shadowBlur  = 16;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, pwrAngle, zeroAngle);
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth   = 16;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      // Power delivery sweep from zeroAngle to endAngle
+      const frac = pwrClamped / 400;
+      pwrAngle = zeroAngle + (endAngle - zeroAngle) * frac;
+      const grad = ctx.createLinearGradient(cx - R, cy, cx + R, cy);
+      grad.addColorStop(0,   C.cyan);
+      grad.addColorStop(0.8, C.cyan);
+      grad.addColorStop(1,   C.red);
+      ctx.save();
+      ctx.shadowColor = pwrClamped > 250 ? C.red : C.cyan;
+      ctx.shadowBlur  = 16;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, zeroAngle, pwrAngle);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth   = 16;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 4. Dial Scale Ticks
+    const majorTicks = [
+      { val: -100, angle: startAngle, label: '-100' },
+      { val: 0,    angle: zeroAngle,  label: '0' },
+      { val: 100,  angle: zeroAngle + (endAngle - zeroAngle) * 0.25, label: '100' },
+      { val: 200,  angle: zeroAngle + (endAngle - zeroAngle) * 0.50, label: '200' },
+      { val: 300,  angle: zeroAngle + (endAngle - zeroAngle) * 0.75, label: '300' },
+      { val: 400,  angle: endAngle,   label: '400' }
+    ];
+
+    majorTicks.forEach(t => {
+      const inner = R - 18;
+      const outer = R - 6;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(t.angle) * inner, cy + Math.sin(t.angle) * inner);
+      ctx.lineTo(cx + Math.cos(t.angle) * outer, cy + Math.sin(t.angle) * outer);
+      ctx.strokeStyle = t.val < 0 ? C.green : 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth   = 2.2;
+      ctx.stroke();
+
+      const lR = R - 32;
+      ctx.font = Math.round(W * 0.042) + 'px sans-serif';
+      ctx.fillStyle   = t.val < 0 ? C.green : 'rgba(140, 170, 210, 0.85)';
+      ctx.textAlign   = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(t.label, cx + Math.cos(t.angle) * lR, cy + Math.sin(t.angle) * lR);
+    });
+
+    // 5. Needle
+    const nLen = R - 16;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(pwrAngle);
+    ctx.shadowColor = pwrClamped < 0 ? C.green : (pwrClamped > 250 ? C.red : C.cyan);
+    ctx.shadowBlur  = 14;
+    ctx.beginPath();
+    ctx.moveTo(-16, 0);
+    ctx.lineTo(nLen, 0);
+    ctx.strokeStyle = pwrClamped < 0 ? C.green : (pwrClamped > 250 ? C.red : C.cyan);
+    ctx.lineWidth   = 3.5;
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+    ctx.restore();
+
+    // 6. Pivot
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fillStyle = pwrClamped < 0 ? C.green : C.cyan;
+    ctx.fill();
+
+    // 7. Digital Readout
+    ctx.save();
+    ctx.font = '800 ' + Math.round(W * 0.20) + 'px sans-serif';
+    ctx.fillStyle = pwrClamped < 0 ? C.green : '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor  = pwrClamped < 0 ? C.green : C.cyan;
+    ctx.shadowBlur   = 16;
+    const sign = pwrClamped > 0 ? '+' : '';
+    ctx.fillText(`${sign}${Math.round(pwrClamped)}`, cx, cy - R * 0.16);
+    ctx.restore();
+
+    ctx.font = Math.round(W * 0.045) + 'px sans-serif';
+    ctx.fillStyle = pwrClamped < 0 ? C.green : 'rgba(140, 170, 210, 0.8)';
+    ctx.textAlign = 'center';
+    ctx.fillText(pwrClamped < 0 ? 'REGEN kW' : 'POWER kW', cx, cy - R * 0.16 + W * 0.14);
+  }
+
+  /* ── 2D G-Force Friction Circle Meter ──────────────────────────────────── */
+  drawGForceMeter (ctx, gLat, gLong) {
+    const W = 60, H = 60;
+    const cx = W / 2, cy = H / 2;
+    const R  = 24;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Outer circle (1.0 G)
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Inner circle (0.5 G)
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.5, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.12)';
+    ctx.stroke();
+
+    // Crosshairs
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.beginPath();
+    ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy);
+    ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R);
+    ctx.stroke();
+
+    // Dynamic G-Dot
+    const dotX = clamp(cx + (gLat / 1.2) * R, cx - R + 2, cx + R - 2);
+    const dotY = clamp(cy - (gLong / 1.2) * R, cy - R + 2, cy + R - 2);
+
+    ctx.save();
+    ctx.shadowColor = C.cyan;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = C.cyan;
+    ctx.fill();
+    ctx.restore();
+
+    const gValEl = document.getElementById('gforce-val');
+    if (gValEl) {
+      const mag = Math.sqrt(gLat * gLat + gLong * gLong);
+      gValEl.textContent = `${mag.toFixed(2)} G`;
+    }
+  }
+
+  /* ── Tire Pressure Monitoring System (TPMS) ───────────────────────────── */
+  drawTPMS (tpms) {
+    if (!tpms) return;
+    const flEl = document.getElementById('tpms-fl-psi');
+    const frEl = document.getElementById('tpms-fr-psi');
+    const rlEl = document.getElementById('tpms-rl-psi');
+    const rrEl = document.getElementById('tpms-rr-psi');
+
+    if (flEl && tpms.fl !== undefined) flEl.textContent = Number(tpms.fl).toFixed(1);
+    if (frEl && tpms.fr !== undefined) frEl.textContent = Number(tpms.fr).toFixed(1);
+    if (rlEl && tpms.rl !== undefined) rlEl.textContent = Number(tpms.rl).toFixed(1);
+    if (rrEl && tpms.rr !== undefined) rrEl.textContent = Number(tpms.rr).toFixed(1);
+  }
+
+  /* ── Turn-by-Turn Navigation HUD Card ──────────────────────────────────── */
+  drawNavCard (nav) {
+    if (!nav) return;
+    const distEl = document.getElementById('nav-dist');
+    const compEl = document.getElementById('nav-compass');
+    const strEl  = document.getElementById('nav-street');
+    const iconEl = document.getElementById('nav-icon');
+
+    if (distEl && nav.dist_m !== undefined) distEl.textContent = `In ${nav.dist_m} m`;
+    if (compEl && nav.heading !== undefined) compEl.textContent = `${nav.heading}° NW`;
+    if (strEl && nav.street) strEl.textContent = nav.street;
+    if (iconEl && nav.maneuver) {
+      iconEl.textContent = nav.maneuver === 'SLIGHT_RIGHT' ? '↱' : (nav.maneuver === 'SLIGHT_LEFT' ? '↰' : '⬆');
+    }
+  }
+
+
   drawGearIndicator (gear) {
     const el = document.getElementById('gear-indicator');
     const display = (gear === 0 || gear === 'N') ? 'N'
@@ -776,6 +1276,14 @@ function normaliseTelemetry (data) {
     // key may be bspot_R or similar
     state.bspot_R = data.bspot_R;
   }
+  if (data.power_kw       !== undefined) state.power_kw       = data.power_kw;
+  if (data.g_lat          !== undefined) state.g_lat          = data.g_lat;
+  if (data.g_long         !== undefined) state.g_long         = data.g_long;
+  if (data.tpms           !== undefined) state.tpms           = data.tpms;
+  if (data.nav            !== undefined) state.nav            = data.nav;
+  if (data.frames         !== undefined && Array.isArray(data.frames)) {
+    updateCanSniffer(data.frames);
+  }
   if (data.frame_count    !== undefined) state.frame_count    = data.frame_count;
   if (data.ts             !== undefined) { /* timestamp, ignore */ }
 }
@@ -868,6 +1376,48 @@ class DemoSimulator {
     state.bspot_R    = Math.sin(t * 0.15) > 0.92;
     state.speed_limit_kmh = 100;
     state.acc_distance_m  = 30 + Math.sin(t * 0.08) * 25;
+
+    // EV Power & Dynamic G-forces
+    state.power_kw = (state.throttle_pct / 100) * 360 - (state.brake_pct > 5 ? state.regen_kw : 0);
+    state.g_long   = ((state.throttle_pct / 100) * 0.75) - ((state.brake_pct / 100) * 1.05);
+    state.g_lat    = Math.sin(t * 0.5) * 0.22;
+
+    // TPMS baseline simulation
+    state.tpms = {
+      fl: 36.1 + Math.sin(t * 0.1) * 0.2,
+      fr: 36.0 + Math.sin(t * 0.12) * 0.2,
+      rl: 35.6 + Math.sin(t * 0.09) * 0.2,
+      rr: 35.7 + Math.sin(t * 0.11) * 0.2
+    };
+
+    // Navigation preview
+    state.nav = {
+      dist_m: Math.max(50, Math.round(550 - (t * 22) % 550)),
+      heading: Math.round((315 + Math.sin(t * 0.2) * 25) % 360),
+      maneuver: (Math.round(550 - (t * 22) % 550) < 180) ? 'SLIGHT_RIGHT' : 'STRAIGHT',
+      street: 'QNX Innovation Expressway'
+    };
+
+    // EV Power & Dynamic G-forces
+    state.power_kw = (state.throttle_pct / 100) * 360 - (state.brake_pct > 5 ? state.regen_kw : 0);
+    state.g_long   = ((state.throttle_pct / 100) * 0.75) - ((state.brake_pct / 100) * 1.05);
+    state.g_lat    = Math.sin(t * 0.5) * 0.22;
+
+    // TPMS baseline simulation
+    state.tpms = {
+      fl: 36.1 + Math.sin(t * 0.1) * 0.2,
+      fr: 36.0 + Math.sin(t * 0.12) * 0.2,
+      rl: 35.6 + Math.sin(t * 0.09) * 0.2,
+      rr: 35.7 + Math.sin(t * 0.11) * 0.2
+    };
+
+    // Navigation preview
+    state.nav = {
+      dist_m: Math.max(50, Math.round(550 - (t * 22) % 550)),
+      heading: Math.round((315 + Math.sin(t * 0.2) * 25) % 360),
+      maneuver: (Math.round(550 - (t * 22) % 550) < 180) ? 'SLIGHT_RIGHT' : 'STRAIGHT',
+      street: 'QNX Innovation Expressway'
+    };
 
     // Notify health monitor
     if (window.__healthMonitor) {
@@ -1051,5 +1601,129 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.__audioEngine) window.__audioEngine.playChime(600, 0.08);
     });
   }
+
+  // View Switcher Buttons (DIALS / ADAS / TRACK)
+  const mainEl = document.getElementById('main');
+  document.querySelectorAll('.cluster-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cluster-view-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const view = btn.dataset.view;
+      if (mainEl) {
+        mainEl.classList.remove('view-adas', 'view-track');
+        if (view === 'adas') mainEl.classList.add('view-adas');
+        else if (view === 'track') mainEl.classList.add('view-track');
+      }
+      if (window.__audioEngine) window.__audioEngine.playChime(700, 0.08);
+      // Trigger canvas resize
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    });
+  });
+
+  // Dual Mode Right Gauge Switcher (RPM vs EV Power kW)
+  const btnModeRpm = document.getElementById('btn-mode-rpm');
+  const btnModePwr = document.getElementById('btn-mode-power');
+  if (btnModeRpm && btnModePwr) {
+    btnModeRpm.addEventListener('click', () => {
+      window.__rightGaugeMode = 'rpm';
+      btnModeRpm.classList.add('active');
+      btnModePwr.classList.remove('active');
+      if (window.__audioEngine) window.__audioEngine.playChime(500, 0.08);
+    });
+    btnModePwr.addEventListener('click', () => {
+      window.__rightGaugeMode = 'power';
+      btnModePwr.classList.add('active');
+      btnModeRpm.classList.remove('active');
+      if (window.__audioEngine) window.__audioEngine.playChime(850, 0.08);
+    });
+  }
+
+  // CAN Bus Sniffer Modal Wiring
+  const canModal = document.getElementById('can-sniffer-modal');
+  const canBtn   = document.getElementById('can-sniffer-btn');
+  const canClose = document.getElementById('can-sniffer-close');
+  const canPause = document.getElementById('can-pause-btn');
+
+  if (canBtn && canModal) {
+    canBtn.addEventListener('click', () => {
+      canModal.classList.add('active');
+      if (window.__audioEngine) window.__audioEngine.playChime(750, 0.1);
+    });
+  }
+  if (canClose && canModal) {
+    canClose.addEventListener('click', () => {
+      canModal.classList.remove('active');
+    });
+  }
+  if (canPause) {
+    canPause.addEventListener('click', () => {
+      window.__canSnifferPaused = !window.__canSnifferPaused;
+      canPause.textContent = window.__canSnifferPaused ? '▶ RESUME STREAM' : '⏸ PAUSE STREAM';
+    });
+  }
 });
+
+/* ── Global CAN Sniffer Frame Handler ────────────────────────────────────── */
+const CAN_NAME_MAP = {
+  0x001: { name: 'Brake Pedal & ABS', prio: 'HIGH' },
+  0x002: { name: 'Airbag Readiness', prio: 'HIGH' },
+  0x003: { name: 'Seatbelt Interlock', prio: 'HIGH' },
+  0x004: { name: 'Forward Collision Alert', prio: 'CRITICAL' },
+  0x100: { name: 'Wheel Speed Telemetry', prio: 'MED-HIGH' },
+  0x101: { name: 'Motor Shaft RPM', prio: 'MED-HIGH' },
+  0x102: { name: 'Gear Position', prio: 'MED-HIGH' },
+  0x103: { name: 'Throttle Pedal Sensor', prio: 'MED-HIGH' },
+  0x104: { name: 'Coolant / Motor Temp', prio: 'MED' },
+  0x105: { name: 'Power kW & G-Forces', prio: 'MED-HIGH' },
+  0x200: { name: 'Battery State of Charge', prio: 'MED' },
+  0x201: { name: 'Battery Pack Voltage', prio: 'MED' },
+  0x203: { name: 'Regen Power Recovery', prio: 'MED' },
+  0x205: { name: 'TPMS 4-Wheel Pressures', prio: 'MED' },
+  0x300: { name: 'Lane Departure Sensing', prio: 'HIGH' },
+  0x301: { name: 'Blind Spot Radar', prio: 'HIGH' },
+  0x302: { name: 'Adaptive Cruise Control', prio: 'HIGH' },
+  0x303: { name: 'Traffic Sign Speed Limit', prio: 'MED' },
+  0x305: { name: 'Turn-by-Turn Navigation', prio: 'LOW' },
+  0x400: { name: 'Odometer Telemetry', prio: 'LOW' },
+  0x401: { name: 'Trip A Distance', prio: 'LOW' }
+};
+
+window.__canSnifferPaused = false;
+let lastSnifferUpdate = 0;
+
+function updateCanSniffer(frames) {
+  if (window.__canSnifferPaused) return;
+  const now = performance.now();
+  if (now - lastSnifferUpdate < 250) return; // Rate limit DOM updates to 4Hz
+  lastSnifferUpdate = now;
+
+  const tbody = document.getElementById('can-sniffer-tbody');
+  if (!tbody) return;
+
+  const sample = frames.slice(-8); // Show latest 8 frames
+  const timeStr = new Date().toISOString().substring(11, 23);
+
+  sample.forEach(f => {
+    const meta = CAN_NAME_MAP[f.id] || { name: 'Unknown Sensor', prio: 'NORMAL' };
+    const hexId = '0x' + f.id.toString(16).toUpperCase().padStart(3, '0');
+    const hexBytes = (f.data_hex || '00 00').toUpperCase();
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td style="color:var(--text-muted);">${timeStr}</td>
+      <td><span class="can-id-chip">${hexId}</span></td>
+      <td style="color:${meta.prio === 'CRITICAL' ? 'var(--accent-red)' : (meta.prio === 'HIGH' ? 'var(--accent-amber)' : 'var(--text-secondary)')}; font-weight:700;">${meta.prio}</td>
+      <td>${f.dlc || 2}</td>
+      <td><span class="can-hex-bytes">${hexBytes}</span></td>
+      <td style="color:#fff;">${meta.name}</td>
+    `;
+    tbody.insertBefore(row, tbody.firstChild);
+  });
+
+  // Keep max 60 rows
+  while (tbody.children.length > 60) {
+    tbody.removeChild(tbody.lastChild);
+  }
+}
+
 

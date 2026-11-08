@@ -26,6 +26,42 @@
     </div>
   </div>
 
+  <!-- Real-Time CAN Bus Raw Hex Sniffer Modal -->
+  <div id="can-sniffer-modal">
+    <div class="can-sniffer-card">
+      <div class="can-sniffer-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:1.2rem;">📡</span>
+          <div>
+            <div style="font-weight:800; font-size:0.85rem; letter-spacing:0.08em; color:var(--accent-cyan);">QNX CAN-BUS RAW PACKET SNIFFER (CAN-FD / 11-BIT ID)</div>
+            <div style="font-size:0.65rem; color:var(--text-secondary);">Kernel Device Driver: /dev/can0/rx0 | Priority Filter: ASIL-D & Powertrain</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="sound-toggle-btn" id="can-pause-btn" style="padding:3px 10px; font-size:0.62rem;">⏸ PAUSE STREAM</button>
+          <button class="dtc-modal-close-btn" id="can-sniffer-close">&times;</button>
+        </div>
+      </div>
+      <div id="can-sniffer-table-wrap">
+        <table id="can-sniffer-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>CAN ID</th>
+              <th>Priority</th>
+              <th>DLC</th>
+              <th>Raw Payload (Hex)</th>
+              <th>Decoded Automotive Signal</th>
+            </tr>
+          </thead>
+          <tbody id="can-sniffer-tbody">
+            <!-- Populated continuously by CAN telemetry stream -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div id="app">
     <!-- Header Bar -->
     <header id="header">
@@ -37,13 +73,20 @@
         </div>
       </div>
 
-      <!-- Drive Mode Selector -->
+      <!-- Drive Mode Selector & Layout Switcher -->
       <div class="header-center" style="display:flex; align-items:center; gap:0.8rem;">
         <div class="drive-mode-group">
           <button class="drive-mode-btn active" data-mode="normal">NORMAL</button>
           <button class="drive-mode-btn" data-mode="sport">SPORT</button>
           <button class="drive-mode-btn" data-mode="eco">ECO</button>
           <button class="drive-mode-btn" data-mode="autopilot">AUTOPILOT</button>
+        </div>
+
+        <!-- Cockpit Layout View Switcher -->
+        <div class="drive-mode-group">
+          <button class="cluster-view-btn active" data-view="classic" title="Classic dual dials layout">DIALS</button>
+          <button class="cluster-view-btn" data-view="adas" title="Panoramic 3D road vision layout">ADAS FOCUS</button>
+          <button class="cluster-view-btn" data-view="track" title="Track & G-force telemetry layout">TRACK</button>
         </div>
 
         <!-- Synthesized Sound Toggle -->
@@ -59,6 +102,11 @@
       </div>
 
       <div class="header-right" style="display:flex; align-items:center; gap:1rem;">
+        <!-- Live CAN Hex Sniffer Button -->
+        <button id="can-sniffer-btn" class="sound-toggle-btn" style="padding:2px 8px; font-size:0.6rem; border-color:var(--accent-cyan); color:var(--accent-cyan);" title="Inspect live 11-bit CAN frame hex traffic">
+          📡 CAN HEX
+        </button>
+
         <!-- Blackbox Flight Recorder Export -->
         <div style="display:flex; align-items:center; gap:4px;">
           <span id="record-status-badge" class="badge-normal" style="font-size:0.55rem;">REC (0)</span>
@@ -147,6 +195,39 @@
         </div>
       </div>
 
+      <!-- Tire Pressure Monitoring System (TPMS - FMVSS 138) -->
+      <div class="panel" id="tpms-panel">
+        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>TPMS (FMVSS 138)</span>
+          <span id="tpms-status-badge" class="badge-normal" style="font-size:0.55rem; color:var(--accent-green);">36 PSI OK</span>
+        </div>
+        <div class="tpms-chassis-grid">
+          <div class="tpms-wheel" id="tpms-fl">
+            <span class="tpms-tag">FL</span>
+            <span class="tpms-psi" id="tpms-fl-psi">36.1</span>
+            <span class="tpms-deg">32°C</span>
+          </div>
+          <div class="tpms-car-silhouette">
+            <div class="tpms-chassis-icon">🚗</div>
+          </div>
+          <div class="tpms-wheel" id="tpms-fr">
+            <span class="tpms-tag">FR</span>
+            <span class="tpms-psi" id="tpms-fr-psi">36.0</span>
+            <span class="tpms-deg">32°C</span>
+          </div>
+          <div class="tpms-wheel" id="tpms-rl">
+            <span class="tpms-tag">RL</span>
+            <span class="tpms-psi" id="tpms-rl-psi">35.6</span>
+            <span class="tpms-deg">34°C</span>
+          </div>
+          <div class="tpms-wheel" id="tpms-rr">
+            <span class="tpms-tag">RR</span>
+            <span class="tpms-psi" id="tpms-rr-psi">35.7</span>
+            <span class="tpms-deg">34°C</span>
+          </div>
+        </div>
+      </div>
+
       <!-- OBD-II Diagnostic Trouble Code (DTC) Console -->
       <div class="panel" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
         <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
@@ -173,6 +254,19 @@
 
       <!-- Center Telemetry & 2.5D Road Vision Column -->
       <div id="center-col" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.4rem; padding:0.4rem;">
+        <!-- Turn-by-Turn Navigation HUD Card -->
+        <div id="nav-hud-card">
+          <div class="nav-icon" id="nav-icon">↱</div>
+          <div class="nav-details">
+            <div id="nav-street">QNX Innovation Expressway</div>
+            <div class="nav-sub">
+              <span id="nav-dist">In 450 m</span>
+              <span style="color:var(--text-muted);">•</span>
+              <span id="nav-compass">315° NW</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Interactive PRNDS Transmission Selector -->
         <div style="display:flex; flex-direction:column; align-items:center; gap:0.3rem;">
           <div class="prnds-bar" id="prnds-bar">
@@ -219,16 +313,31 @@
         </div>
       </div>
 
-      <!-- Tachometer / RPM Gauge -->
-      <div id="rpm-wrap" class="panel" style="display:flex; justify-content:center; align-items:center; height:100%;">
+      <!-- Tachometer / EV Power Gauge (Dual Mode) -->
+      <div id="rpm-wrap" class="panel" style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; position:relative;">
+        <div class="gauge-mode-switcher">
+          <button class="gauge-mode-btn active" id="btn-mode-rpm" title="Show Internal Combustion / Motor RPM">RPM</button>
+          <button class="gauge-mode-btn" id="btn-mode-power" title="Show EV Power Delivery & Regen in kW">EV kW</button>
+        </div>
         <canvas id="rpm-canvas"></canvas>
       </div>
 
       <!-- Bottom Gauge Row: Motor Temperature & Trip Stats -->
       <div id="bottom-row">
+        <!-- Motor / Coolant Temp -->
         <div id="temp-wrap" class="panel" style="padding:0.4rem 1.2rem; min-width:140px;">
           <canvas id="temp-canvas" width="100" height="70"></canvas>
         </div>
+
+        <!-- 2D Dynamic G-Force Friction Meter -->
+        <div id="gforce-wrap" class="panel" style="padding:0.3rem 0.8rem; display:flex; align-items:center; gap:0.6rem;">
+          <canvas id="gforce-canvas" width="60" height="60"></canvas>
+          <div>
+            <div style="font-size:0.55rem; color:var(--text-muted); letter-spacing:0.08em; font-weight:700;">G-METER</div>
+            <div id="gforce-val" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-cyan); font-weight:700;">0.00 G</div>
+          </div>
+        </div>
+
         <div class="panel" style="padding:0.4rem 1.2rem; display:flex; gap:1.5rem; align-items:center;">
           <div>
             <div style="font-size:0.6rem; color:var(--text-muted); letter-spacing:0.1em;">ODOMETER</div>

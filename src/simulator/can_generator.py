@@ -52,6 +52,9 @@ CAN_ID = {
     "TRIP_DISTANCE":     0x401,
     "FUEL_ECONOMY":      0x402,
     "AMBIENT_TEMP":      0x403,
+    "PERFORMANCE_DYN":   0x105,
+    "TPMS_STATUS":       0x205,
+    "NAV_PREVIEW":       0x305,
 }
 
 # ---------------------------------------------------------------------------
@@ -70,6 +73,15 @@ class VehicleState:
     battery_voltage: float = 400.0
     battery_temp_c: float = 25.0
     regen_kw: float = 0.0
+    power_kw: float = 0.0
+    g_lat: float = 0.0
+    g_long: float = 0.0
+    tpms_fl: float = 36.0
+    tpms_fr: float = 36.0
+    tpms_rl: float = 35.5
+    tpms_rr: float = 35.5
+    nav_dist_m: int = 450
+    nav_heading_deg: int = 315
     lane_dep_left: bool = False
     lane_dep_right: bool = False
     blind_spot_left: bool = False
@@ -193,7 +205,9 @@ def build_frames(state: VehicleState) -> list[dict]:
         return {
             "id":        can_id,
             "len":       len(payload),
+            "dlc":       len(payload),
             "data":      list(payload),
+            "data_hex":  " ".join(f"{b:02X}" for b in payload),
             "timestamp": time.time(),
         }
 
@@ -254,6 +268,38 @@ def build_frames(state: VehicleState) -> list[dict]:
     frames.append(frame(CAN_ID["TRAFFIC_SIGN"],
         struct.pack("B", state.speed_limit_kmh)))
 
+    # Performance & Dynamic G-Forces (CAN 0x105)
+    if state.brake_pct > 5:
+        state.power_kw = -round(state.regen_kw, 1)
+    else:
+        state.power_kw = round((state.throttle_pct / 100.0) * 360.0, 1)
+
+    state.g_long = round(((state.throttle_pct / 100.0) * 0.82) - ((state.brake_pct / 100.0) * 1.05), 2)
+    if state.lane_dep_left:
+        state.g_lat = -0.38
+    elif state.lane_dep_right:
+        state.g_lat = 0.38
+    else:
+        state.g_lat = round(math.sin(state.frame_count * 0.04) * 0.06, 2)
+
+    frames.append(frame(CAN_ID["PERFORMANCE_DYN"],
+        struct.pack(">hh", int(state.power_kw * 10), int(state.g_lat * 100))))
+
+    # TPMS 4-Wheel Pressures (CAN 0x205)
+    temp_factor = min(2.5, state.speed_kmh * 0.01)
+    state.tpms_fl = round(36.0 + temp_factor + random.uniform(-0.1, 0.1), 1)
+    state.tpms_fr = round(36.0 + temp_factor + random.uniform(-0.1, 0.1), 1)
+    state.tpms_rl = round(35.5 + temp_factor + random.uniform(-0.1, 0.1), 1)
+    state.tpms_rr = round(35.5 + temp_factor + random.uniform(-0.1, 0.1), 1)
+    frames.append(frame(CAN_ID["TPMS_STATUS"],
+        struct.pack("BBBB", int(state.tpms_fl), int(state.tpms_fr), int(state.tpms_rl), int(state.tpms_rr))))
+
+    # Turn-by-Turn Navigation Preview (CAN 0x305)
+    state.nav_dist_m = max(50, 600 - int((state.trip_km * 1000) % 600))
+    state.nav_heading_deg = int((315 + math.sin(state.frame_count * 0.02) * 25) % 360)
+    frames.append(frame(CAN_ID["NAV_PREVIEW"],
+        struct.pack(">HH", state.nav_dist_m, state.nav_heading_deg)))
+
     # Comfort
     state.trip_km += state.speed_kmh / 3600.0 * 0.05  # 50ms tick
     frames.append(frame(CAN_ID["TRIP_DISTANCE"],
@@ -278,6 +324,19 @@ def write_stdout(frames: list[dict], state: VehicleState):
         "brake_pct":    round(state.brake_pct, 1),
         "soc_pct":      round(state.soc_pct, 1),
         "regen_kw":     round(state.regen_kw, 2),
+        "power_kw":     round(state.power_kw, 1),
+        "g_lat":        state.g_lat,
+        "g_long":       state.g_long,
+        "tpms": {
+            "fl": state.tpms_fl, "fr": state.tpms_fr,
+            "rl": state.tpms_rl, "rr": state.tpms_rr
+        },
+        "nav": {
+            "dist_m":   state.nav_dist_m,
+            "heading":  state.nav_heading_deg,
+            "maneuver": "SLIGHT_RIGHT" if state.nav_dist_m < 200 else "STRAIGHT",
+            "street":   "QNX Innovation Expressway"
+        },
         "abs_active":   state.abs_active,
         "collision":    False,
         "lane_dep_L":   state.lane_dep_left,
@@ -298,6 +357,19 @@ def write_udp(frames: list[dict], state: VehicleState, sock: socket.socket, addr
         "brake_pct":    round(state.brake_pct, 1),
         "soc_pct":      round(state.soc_pct, 1),
         "regen_kw":     round(state.regen_kw, 2),
+        "power_kw":     round(state.power_kw, 1),
+        "g_lat":        state.g_lat,
+        "g_long":       state.g_long,
+        "tpms": {
+            "fl": state.tpms_fl, "fr": state.tpms_fr,
+            "rl": state.tpms_rl, "rr": state.tpms_rr
+        },
+        "nav": {
+            "dist_m":   state.nav_dist_m,
+            "heading":  state.nav_heading_deg,
+            "maneuver": "SLIGHT_RIGHT" if state.nav_dist_m < 200 else "STRAIGHT",
+            "street":   "QNX Innovation Expressway"
+        },
         "abs_active":   state.abs_active,
         "collision":    False,
         "lane_dep_L":   state.lane_dep_left,

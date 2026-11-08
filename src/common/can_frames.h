@@ -40,18 +40,21 @@ extern "C" {
 #define CAN_ID_GEAR_POSITION        0x102U   /* Current gear: P/R/N/1-8 */
 #define CAN_ID_THROTTLE_POSITION    0x103U   /* Throttle pedal percentage */
 #define CAN_ID_ENGINE_TEMP          0x104U   /* Coolant temperature (°C) */
+#define CAN_ID_PERFORMANCE_DYN      0x105U   /* G-Forces (lat/long) & Power kW */
 
 /* -- Battery & EV (Priority: MEDIUM) -- */
 #define CAN_ID_BATTERY_SOC          0x200U   /* State of charge (%) */
 #define CAN_ID_BATTERY_VOLTAGE      0x201U   /* Pack voltage (V * 10) */
 #define CAN_ID_BATTERY_TEMP         0x202U   /* Battery pack temperature (°C) */
 #define CAN_ID_REGEN_POWER          0x203U   /* Regenerative braking power (kW * 10) */
+#define CAN_ID_TPMS_STATUS          0x205U   /* 4-wheel tire pressure (PSI) & temp */
 
 /* -- ADAS (Priority: HIGH when active, LOW otherwise) -- */
 #define CAN_ID_LANE_DEPARTURE       0x300U   /* Lane departure warning */
 #define CAN_ID_BLIND_SPOT           0x301U   /* Blind spot monitoring (L/R) */
 #define CAN_ID_ADAPTIVE_CRUISE      0x302U   /* ACC target vehicle distance (m) */
 #define CAN_ID_TRAFFIC_SIGN         0x303U   /* Detected speed limit sign (km/h) */
+#define CAN_ID_NAV_PREVIEW          0x305U   /* Turn maneuver, distance (m), heading */
 
 /* -- Comfort & Infotainment (Priority: LOW) -- */
 #define CAN_ID_ODOMETER             0x400U   /* Total distance (km) */
