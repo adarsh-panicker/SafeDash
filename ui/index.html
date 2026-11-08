@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeDash — QNX SDP 8.0 Fail-Safe Instrument Cluster</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="mode-normal">
+  <!-- Full-screen Collision Alert Overlay -->
+  <div id="collision-overlay">
+    <div class="collision-text">⚠ COLLISION IMMINENT</div>
+  </div>
+
+  <!-- Signal Lost Overlay (Click to Dismiss) -->
+  <div id="signal-lost-overlay">
+    <div class="signal-text">SIGNAL LOST</div>
+    <div class="signal-sub">Attempting QNX Telemetry Reconnect... (Click to Enter Standalone Simulation)</div>
+  </div>
+
+  <!-- OBD-II Freeze Frame Modal -->
+  <div id="dtc-modal">
+    <div class="dtc-modal-card">
+      <button class="dtc-modal-close-btn" id="dtc-modal-close">&times;</button>
+      <div id="dtc-modal-content"></div>
+    </div>
+  </div>
+
+  <div id="app">
+    <!-- Header Bar -->
+    <header id="header">
+      <div class="brand">
+        <div class="brand-logo">🛡️</div>
+        <div>
+          <div class="brand-name">SafeDash</div>
+          <div class="brand-sub">QNX SDP 8.0 RTOS Cockpit</div>
+        </div>
+      </div>
+
+      <!-- Drive Mode Selector -->
+      <div class="header-center" style="display:flex; align-items:center; gap:0.8rem;">
+        <div class="drive-mode-group">
+          <button class="drive-mode-btn active" data-mode="normal">NORMAL</button>
+          <button class="drive-mode-btn" data-mode="sport">SPORT</button>
+          <button class="drive-mode-btn" data-mode="eco">ECO</button>
+          <button class="drive-mode-btn" data-mode="autopilot">AUTOPILOT</button>
+        </div>
+
+        <!-- Synthesized Sound Toggle -->
+        <button class="sound-toggle-btn" id="sound-toggle-btn">
+          <span class="sound-icon">🔇</span>
+          <span class="sound-label">SOUND MUTED</span>
+        </button>
+
+        <!-- Manual Drive Mode Toggle -->
+        <button class="sound-toggle-btn" id="manual-drive-toggle-btn" title="Press [M] to toggle keyboard drive (W/S/A/D)">
+          🎮 MANUAL DRIVE
+        </button>
+      </div>
+
+      <div class="header-right" style="display:flex; align-items:center; gap:1rem;">
+        <!-- Blackbox Flight Recorder Export -->
+        <div style="display:flex; align-items:center; gap:4px;">
+          <span id="record-status-badge" class="badge-normal" style="font-size:0.55rem;">REC (0)</span>
+          <button id="export-csv-btn" class="sound-toggle-btn" style="padding:2px 6px; font-size:0.55rem;" title="Download CSV for safety audit">CSV</button>
+          <button id="export-json-btn" class="sound-toggle-btn" style="padding:2px 6px; font-size:0.55rem;" title="Download JSON Flight Recorder">JSON</button>
+        </div>
+
+        <div id="clock">12:00:00</div>
+        <div id="ws-status">
+          <span id="ws-dot"></span>
+          <span id="ws-label">CONNECTING...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Sidebar: ADAS, Telltales, Pedals & OBD-II Diagnostics -->
+    <aside id="sidebar">
+      <div class="panel">
+        <div class="panel-title">SAFETY TELLTALES</div>
+        <div id="telltales">
+          <div class="telltale abs" id="tt-abs">
+            <span class="telltale-icon">Ⓞ</span>
+            <span class="telltale-label">ABS</span>
+          </div>
+          <div class="telltale airbag" id="tt-airbag">
+            <span class="telltale-icon">👤</span>
+            <span class="telltale-label">AIRBAG</span>
+          </div>
+          <div class="telltale collision" id="tt-collision">
+            <span class="telltale-icon">⚠</span>
+            <span class="telltale-label">BRAKE</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="adas-panel">
+        <div class="panel-title">ADAS RADAR & LANES</div>
+        <div class="adas-row" style="justify-content:center; gap:2rem;">
+          <span class="lane-indicator" id="lane-left">◀</span>
+          <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">LANE</span>
+          <span class="lane-indicator" id="lane-right">▶</span>
+        </div>
+
+        <div class="adas-row" style="margin-top:0.4rem;">
+          <div class="bspot-indicator" id="bspot-left">BLIND SPOT<br>LEFT</div>
+          <div class="bspot-indicator" id="bspot-right">BLIND SPOT<br>RIGHT</div>
+        </div>
+
+        <div class="adas-row" style="margin-top:0.4rem;">
+          <div style="font-size:0.65rem; color:var(--text-secondary);">SPEED LIMIT:</div>
+          <div style="border:2px solid var(--accent-red); border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:900; font-family:var(--font-mono); color:#fff; font-size:0.75rem;" id="speed-limit-val">100</div>
+        </div>
+
+        <div id="acc-distance-wrap" style="margin-top:0.4rem;">
+          <span>ACC TARGET:</span>
+          <span id="acc-distance-val">50 m</span>
+        </div>
+      </div>
+
+      <!-- Pedals -->
+      <div class="panel">
+        <div class="panel-title">PEDALS</div>
+        <div id="pedal-bars">
+          <div class="pedal-col">
+            <div class="pedal-track">
+              <div class="pedal-fill" id="throttle-fill" style="height:0%;"></div>
+            </div>
+            <div class="pedal-label">THR</div>
+            <div class="pedal-val" id="throttle-val">0%</div>
+          </div>
+          <div class="pedal-col">
+            <div class="pedal-track">
+              <div class="pedal-fill" id="brake-fill" style="height:0%;"></div>
+            </div>
+            <div class="pedal-label">BRK</div>
+            <div class="pedal-val" id="brake-val">0%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OBD-II Diagnostic Trouble Code (DTC) Console -->
+      <div class="panel" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>OBD-II / UDS DIAGNOSTICS</span>
+          <span id="dtc-count-badge" class="badge-normal">0 DTC</span>
+        </div>
+        <div id="dtc-list-container" style="flex:1; overflow-y:auto; max-height:140px; margin-top:4px;">
+          <div style="padding:0.6rem; text-align:center; color:var(--text-muted); font-size:0.7rem;">
+            ✓ NO ACTIVE FAULT CODES (SAE J2012 COMPLIANT)
+          </div>
+        </div>
+        <button id="dtc-clear-btn" class="sound-toggle-btn" style="width:100%; margin-top:4px; justify-content:center; font-size:0.6rem;">
+          CLEAR STORED DTCs (SERVICE $04)
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Gauge Area -->
+    <main id="main">
+      <!-- Speedometer Gauge -->
+      <div id="speedometer-wrap" class="panel" style="display:flex; justify-content:center; align-items:center; height:100%;">
+        <canvas id="speedometer-canvas"></canvas>
+      </div>
+
+      <!-- Center Telemetry & 2.5D Road Vision Column -->
+      <div id="center-col" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.4rem; padding:0.4rem;">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <div id="gear-indicator">P</div>
+          <div>
+            <div id="gear-label">CURRENT GEAR</div>
+            <div id="active-drive-mode-label" class="neon-cyan" style="font-size:0.65rem; font-weight:800; letter-spacing:0.1em;">NORMAL</div>
+          </div>
+        </div>
+
+        <!-- 2.5D Highway Road Vision Canvas -->
+        <div id="road-vision-wrap">
+          <span class="road-vision-badge">2.5D RADAR VISION</span>
+          <canvas id="road-vision-canvas"></canvas>
+        </div>
+
+        <div id="battery-wrap" style="width:100%; max-width:200px;">
+          <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-bottom:0.2rem;">
+            <span style="color:var(--text-secondary);">TRACTION BATT</span>
+            <span id="battery-soc-pct" class="neon-cyan" style="font-family:var(--font-mono); font-weight:700;">85%</span>
+          </div>
+          <div id="battery-bar-track">
+            <div id="battery-bar-fill" style="width:85%;"></div>
+          </div>
+        </div>
+
+        <div id="regen-info" style="width:100%; max-width:200px;">
+          <div style="display:flex; justify-content:space-between; font-size:0.65rem; margin-bottom:0.2rem;">
+            <span style="color:var(--text-muted);">REGEN POWER</span>
+            <span id="regen-val" style="color:var(--accent-green); font-family:var(--font-mono);">0.0 kW</span>
+          </div>
+          <div id="regen-bar-track">
+            <div id="regen-bar-fill" style="width:0%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tachometer / RPM Gauge -->
+      <div id="rpm-wrap" class="panel" style="display:flex; justify-content:center; align-items:center; height:100%;">
+        <canvas id="rpm-canvas"></canvas>
+      </div>
+
+      <!-- Bottom Gauge Row: Motor Temperature & Trip Stats -->
+      <div id="bottom-row">
+        <div id="temp-wrap" class="panel" style="padding:0.4rem 1.2rem; min-width:140px;">
+          <canvas id="temp-canvas" width="100" height="70"></canvas>
+        </div>
+        <div class="panel" style="padding:0.4rem 1.2rem; display:flex; gap:1.5rem; align-items:center;">
+          <div>
+            <div style="font-size:0.6rem; color:var(--text-muted); letter-spacing:0.1em;">ODOMETER</div>
+            <div id="odometer-val" style="font-family:var(--font-mono); font-size:0.85rem; color:var(--text-primary); font-weight:700;">12,345 km</div>
+          </div>
+          <div>
+            <div style="font-size:0.6rem; color:var(--text-muted); letter-spacing:0.1em;">EST. RANGE</div>
+            <div id="range-val" style="font-family:var(--font-mono); font-size:0.85rem; color:var(--accent-green); font-weight:700;">385 km</div>
+          </div>
+          <div>
+            <div style="font-size:0.6rem; color:var(--text-muted); letter-spacing:0.1em;">DRIVE STATUS</div>
+            <div id="drive-mode-indicator" style="font-family:var(--font-mono); font-size:0.8rem; color:var(--accent-cyan); font-weight:700;">AUTONOMOUS / QNX CRUISE</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Fault Injection Panel (Right Sidebar) -->
+    <aside id="fault-panel">
+      <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>FAULT INJECTION</span>
+        <span style="font-size:0.6rem; color:var(--accent-amber); font-weight:700;">DEMO MODE</span>
+      </div>
+
+      <button class="fault-btn f-cpu" id="btn-fault-cpu">
+        <span class="fault-btn-icon">⚡</span>
+        <span class="fault-btn-text">CPU Stress Loop</span>
+        <span class="fault-countdown"></span>
+        <span class="fault-btn-state">READY</span>
+      </button>
+
+      <button class="fault-btn f-crash" id="btn-fault-crash">
+        <span class="fault-btn-icon">💥</span>
+        <span class="fault-btn-text">Crash Infotainment</span>
+        <span class="fault-countdown"></span>
+        <span class="fault-btn-state">READY</span>
+      </button>
+
+      <button class="fault-btn f-dropout" id="btn-fault-dropout">
+        <span class="fault-btn-icon">📡</span>
+        <span class="fault-btn-text">Sensor Dropout</span>
+        <span class="fault-countdown"></span>
+        <span class="fault-btn-state">READY</span>
+      </button>
+
+      <button class="fault-btn f-memory" id="btn-fault-memory">
+        <span class="fault-btn-icon">💾</span>
+        <span class="fault-btn-text">Memory Pressure</span>
+        <span class="fault-countdown"></span>
+        <span class="fault-btn-state">READY</span>
+      </button>
+
+      <button class="fault-btn f-adas" id="btn-fault-adas">
+        <span class="fault-btn-icon">🚨</span>
+        <span class="fault-btn-text">ADAS Crash Alert</span>
+        <span class="fault-countdown"></span>
+        <span class="fault-btn-state">READY</span>
+      </button>
+
+      <button class="fault-btn f-clear" id="btn-fault-clear">
+        <span class="fault-btn-icon">🔄</span>
+        <span class="fault-btn-text">Reset / Clear All</span>
+        <span class="fault-btn-state">CLEARED</span>
+      </button>
+
+      <div class="panel" style="margin-top:0.4rem; flex:1; display:flex; flex-direction:column;">
+        <div class="panel-title" style="font-size:0.65rem;">INJECTION LOG</div>
+        <div id="fault-log-entries" style="flex:1; overflow-y:auto; max-height:120px;">
+          <div class="fault-log-entry">
+            <span class="fault-log-time">[INIT]</span>
+            <span class="fault-log-event">SafeDash watchdog active</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- QNX Real-Time Health & Adaptive Partitioning Panel (Bottom) -->
+    <footer id="health-panel">
+      <div id="health-thread-table-wrap">
+        <table id="health-thread-table">
+          <thead>
+            <tr>
+              <th>QNX Thread Name</th>
+              <th>Priority</th>
+              <th>Microkernel Latency</th>
+              <th>Scheduler State</th>
+            </tr>
+          </thead>
+          <tbody id="health-thread-tbody">
+            <!-- Populated dynamically by health_monitor.js -->
+          </tbody>
+        </table>
+
+        <!-- QNX Adaptive Partitioning Scheduler (APS) Guaranteed CPU Budget Allocation -->
+        <div class="aps-wrap">
+          <div style="display:flex; justify-content:space-between; font-size:0.55rem; color:var(--text-muted); font-family:var(--font-mono);">
+            <span>QNX APS BUDGETS:</span>
+            <span><strong style="color:var(--accent-green);">Safety (60%)</strong> | <strong style="color:var(--accent-cyan);">Infotainment (25%)</strong> | <strong style="color:var(--accent-purple);">Background (15%)</strong></span>
+          </div>
+          <div class="aps-bar-track">
+            <div class="aps-seg-safety" title="Safety Partition: 60% Guaranteed CPU"></div>
+            <div class="aps-seg-infotainment" title="Infotainment Partition: 25% Capped"></div>
+            <div class="aps-seg-bg" title="Background Diagnostics: 15%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="health-stats">
+        <div class="health-stat">
+          <span class="health-stat-label">QNX CAN FRAMES</span>
+          <span class="health-stat-val" id="hp-frame-val">0</span>
+        </div>
+        <div class="health-stat">
+          <span class="health-stat-label">FAULT RETRIES</span>
+          <span class="health-stat-val" id="hp-err-val" style="color:var(--accent-green);">0</span>
+        </div>
+        <div class="health-stat">
+          <span class="health-stat-label">TELEMETRY FPS</span>
+          <span class="health-stat-val" id="hp-rate-val">20 fps</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Scripts in dependency order -->
+  <script src="js/cluster.js"></script>
+  <script src="js/audio_engine.js"></script>
+  <script src="js/road_vision.js"></script>
+  <script src="js/dtc_manager.js"></script>
+  <script src="js/manual_drive.js"></script>
+  <script src="js/telemetry_recorder.js"></script>
+  <script src="js/health_monitor.js"></script>
+  <script src="js/fault_panel.js"></script>
+</body>
+</html>
