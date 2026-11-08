@@ -46,6 +46,13 @@ class ManualDriveController {
       });
     }
 
+    const exitHudBtn = document.getElementById('manual-hud-exit-btn');
+    if (exitHudBtn) {
+      exitHudBtn.addEventListener('click', () => {
+        if (this.isManualMode) this.toggleMode();
+      });
+    }
+
     window.addEventListener('keydown', (e) => {
       // Toggle mode with 'm'
       if (e.key === 'm' || e.key === 'M') {
@@ -93,7 +100,14 @@ class ManualDriveController {
 
     if (this.toggleBtn) {
       this.toggleBtn.classList.toggle('active', this.isManualMode);
-      this.toggleBtn.textContent = this.isManualMode ? '🎮 MANUAL DRIVE [ON]' : '🚗 AUTONOMOUS CRUISE';
+      this.toggleBtn.textContent = this.isManualMode ? '🎮 MANUAL DRIVE [ON]' : '🎮 MANUAL DRIVE';
+    }
+
+    const hud = document.getElementById('manual-drive-hud');
+    if (hud) hud.classList.toggle('active', this.isManualMode);
+
+    if (window.showToast) {
+      window.showToast(this.isManualMode ? '🎮' : '🚗', this.isManualMode ? 'Manual Keyboard Drive Engaged' : 'Autonomous AI Cruise Restored');
     }
 
     if (this.indicator) {

@@ -101,7 +101,12 @@
         </button>
       </div>
 
-      <div class="header-right" style="display:flex; align-items:center; gap:1rem;">
+      <div class="header-right" style="display:flex; align-items:center; gap:0.8rem;">
+        <!-- Fault Lab Drawer Toggle -->
+        <button id="btn-toggle-fault-lab" class="sound-toggle-btn active" style="padding:2px 8px; font-size:0.6rem; border-color:var(--accent-amber); color:var(--accent-amber);" title="Toggle Safety Fault Lab Panel">
+          ⚡ LAB
+        </button>
+
         <!-- Live CAN Hex Sniffer Button -->
         <button id="can-sniffer-btn" class="sound-toggle-btn" style="padding:2px 8px; font-size:0.6rem; border-color:var(--accent-cyan); color:var(--accent-cyan);" title="Inspect live 11-bit CAN frame hex traffic">
           📡 CAN HEX
@@ -122,126 +127,145 @@
       </div>
     </header>
 
-    <!-- Sidebar: ADAS, Telltales, Pedals & OBD-II Diagnostics -->
+    <!-- Sidebar: Tabbed Vehicle Status Deck -->
     <aside id="sidebar">
-      <div class="panel">
-        <div class="panel-title">SAFETY TELLTALES</div>
-        <div id="telltales">
-          <div class="telltale abs" id="tt-abs">
-            <span class="telltale-icon">Ⓞ</span>
-            <span class="telltale-label">ABS</span>
-          </div>
-          <div class="telltale airbag" id="tt-airbag">
-            <span class="telltale-icon">👤</span>
-            <span class="telltale-label">AIRBAG</span>
-          </div>
-          <div class="telltale collision" id="tt-collision">
-            <span class="telltale-icon">⚠</span>
-            <span class="telltale-label">BRAKE</span>
-          </div>
-        </div>
+      <!-- Sidebar Tab Switcher -->
+      <div class="sidebar-tabs">
+        <button class="sidebar-tab-btn active" data-tab="adas">🛡️ ADAS</button>
+        <button class="sidebar-tab-btn" data-tab="tpms">🚗 TPMS</button>
+        <button class="sidebar-tab-btn" data-tab="obd">🔧 OBD-II</button>
       </div>
 
-      <div class="panel" id="adas-panel">
-        <div class="panel-title">ADAS RADAR & LANES</div>
-        <div class="adas-row" style="justify-content:center; gap:2rem;">
-          <span class="lane-indicator" id="lane-left">◀</span>
-          <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">LANE</span>
-          <span class="lane-indicator" id="lane-right">▶</span>
-        </div>
-
-        <div class="adas-row" style="margin-top:0.4rem;">
-          <div class="bspot-indicator" id="bspot-left">BLIND SPOT<br>LEFT</div>
-          <div class="bspot-indicator" id="bspot-right">BLIND SPOT<br>RIGHT</div>
-        </div>
-
-        <div class="adas-row" style="margin-top:0.4rem; justify-content:space-between;">
-          <div style="font-size:0.65rem; color:var(--text-secondary);">SPEED LIMIT:</div>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <button class="limit-adjust-btn" id="btn-limit-down" title="Lower speed limit (CAN 0x201)">−</button>
-            <div style="border:2px solid var(--accent-red); border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:900; font-family:var(--font-mono); color:#fff; font-size:0.75rem;" id="speed-limit-val">100</div>
-            <button class="limit-adjust-btn" id="btn-limit-up" title="Raise speed limit (CAN 0x201)">+</button>
-          </div>
-        </div>
-
-        <div id="acc-distance-wrap" style="margin-top:0.4rem; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:0.65rem; color:var(--text-secondary);">ACC DISTANCE:</span>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <button class="limit-adjust-btn" id="btn-acc-down" title="Decrease follow distance">−</button>
-            <span id="acc-distance-val" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-cyan); font-weight:700;">50 m</span>
-            <button class="limit-adjust-btn" id="btn-acc-up" title="Increase follow distance">+</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Pedals -->
-      <div class="panel">
-        <div class="panel-title">PEDALS</div>
-        <div id="pedal-bars">
-          <div class="pedal-col">
-            <div class="pedal-track">
-              <div class="pedal-fill" id="throttle-fill" style="height:0%;"></div>
+      <!-- Tab 1: ADAS, Safety Telltales & Pedals -->
+      <div class="sidebar-tab-content active" id="tab-adas">
+        <div class="panel">
+          <div class="panel-title">SAFETY TELLTALES</div>
+          <div id="telltales">
+            <div class="telltale abs" id="tt-abs">
+              <span class="telltale-icon">Ⓞ</span>
+              <span class="telltale-label">ABS</span>
             </div>
-            <div class="pedal-label">THR</div>
-            <div class="pedal-val" id="throttle-val">0%</div>
-          </div>
-          <div class="pedal-col">
-            <div class="pedal-track">
-              <div class="pedal-fill" id="brake-fill" style="height:0%;"></div>
+            <div class="telltale airbag" id="tt-airbag">
+              <span class="telltale-icon">👤</span>
+              <span class="telltale-label">AIRBAG</span>
             </div>
-            <div class="pedal-label">BRK</div>
-            <div class="pedal-val" id="brake-val">0%</div>
+            <div class="telltale collision" id="tt-collision">
+              <span class="telltale-icon">⚠</span>
+              <span class="telltale-label">BRAKE</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="adas-panel">
+          <div class="panel-title">RADAR & SPEED CONTROL</div>
+          <div class="adas-row" style="justify-content:center; gap:2rem;">
+            <span class="lane-indicator" id="lane-left">◀</span>
+            <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">LANE</span>
+            <span class="lane-indicator" id="lane-right">▶</span>
+          </div>
+
+          <div class="adas-row" style="margin-top:0.4rem;">
+            <div class="bspot-indicator" id="bspot-left">BLIND SPOT<br>LEFT</div>
+            <div class="bspot-indicator" id="bspot-right">BLIND SPOT<br>RIGHT</div>
+          </div>
+
+          <div class="adas-row" style="margin-top:0.4rem; justify-content:space-between;">
+            <div style="font-size:0.65rem; color:var(--text-secondary);">SPEED LIMIT:</div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <button class="limit-adjust-btn" id="btn-limit-down" title="Lower speed limit">−</button>
+              <div style="border:2px solid var(--accent-red); border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:900; font-family:var(--font-mono); color:#fff; font-size:0.75rem;" id="speed-limit-val">100</div>
+              <button class="limit-adjust-btn" id="btn-limit-up" title="Raise speed limit">+</button>
+            </div>
+          </div>
+
+          <div id="acc-distance-wrap" style="margin-top:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.65rem; color:var(--text-secondary);">ACC DISTANCE:</span>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <button class="limit-adjust-btn" id="btn-acc-down" title="Decrease follow distance">−</button>
+              <span id="acc-distance-val" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-cyan); font-weight:700;">50 m</span>
+              <button class="limit-adjust-btn" id="btn-acc-up" title="Increase follow distance">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pedals -->
+        <div class="panel">
+          <div class="panel-title">PEDALS</div>
+          <div id="pedal-bars">
+            <div class="pedal-col">
+              <div class="pedal-track">
+                <div class="pedal-fill" id="throttle-fill" style="height:0%;"></div>
+              </div>
+              <div class="pedal-label">THR</div>
+              <div class="pedal-val" id="throttle-val">0%</div>
+            </div>
+            <div class="pedal-col">
+              <div class="pedal-track">
+                <div class="pedal-fill" id="brake-fill" style="height:0%;"></div>
+              </div>
+              <div class="pedal-label">BRK</div>
+              <div class="pedal-val" id="brake-val">0%</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Tire Pressure Monitoring System (TPMS - FMVSS 138) -->
-      <div class="panel" id="tpms-panel">
-        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>TPMS (FMVSS 138)</span>
-          <span id="tpms-status-badge" class="badge-normal" style="font-size:0.55rem; color:var(--accent-green);">36 PSI OK</span>
-        </div>
-        <div class="tpms-chassis-grid">
-          <div class="tpms-wheel" id="tpms-fl">
-            <span class="tpms-tag">FL</span>
-            <span class="tpms-psi" id="tpms-fl-psi">36.1</span>
-            <span class="tpms-deg">32°C</span>
+      <!-- Tab 2: TPMS 4-Wheel Monitoring -->
+      <div class="sidebar-tab-content" id="tab-tpms">
+        <div class="panel" id="tpms-panel">
+          <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>TPMS (FMVSS 138)</span>
+            <span id="tpms-status-badge" class="badge-normal" style="font-size:0.55rem; color:var(--accent-green);">36 PSI OK</span>
           </div>
-          <div class="tpms-car-silhouette">
-            <div class="tpms-chassis-icon">🚗</div>
+          <div class="tpms-chassis-grid">
+            <div class="tpms-wheel" id="tpms-fl">
+              <span class="tpms-tag">FL</span>
+              <span class="tpms-psi" id="tpms-fl-psi">36.1</span>
+              <span class="tpms-deg">32°C</span>
+            </div>
+            <div class="tpms-car-silhouette">
+              <div class="tpms-chassis-icon">🚗</div>
+            </div>
+            <div class="tpms-wheel" id="tpms-fr">
+              <span class="tpms-tag">FR</span>
+              <span class="tpms-psi" id="tpms-fr-psi">36.0</span>
+              <span class="tpms-deg">32°C</span>
+            </div>
+            <div class="tpms-wheel" id="tpms-rl">
+              <span class="tpms-tag">RL</span>
+              <span class="tpms-psi" id="tpms-rl-psi">35.6</span>
+              <span class="tpms-deg">34°C</span>
+            </div>
+            <div class="tpms-wheel" id="tpms-rr">
+              <span class="tpms-tag">RR</span>
+              <span class="tpms-psi" id="tpms-rr-psi">35.7</span>
+              <span class="tpms-deg">34°C</span>
+            </div>
           </div>
-          <div class="tpms-wheel" id="tpms-fr">
-            <span class="tpms-tag">FR</span>
-            <span class="tpms-psi" id="tpms-fr-psi">36.0</span>
-            <span class="tpms-deg">32°C</span>
-          </div>
-          <div class="tpms-wheel" id="tpms-rl">
-            <span class="tpms-tag">RL</span>
-            <span class="tpms-psi" id="tpms-rl-psi">35.6</span>
-            <span class="tpms-deg">34°C</span>
-          </div>
-          <div class="tpms-wheel" id="tpms-rr">
-            <span class="tpms-tag">RR</span>
-            <span class="tpms-psi" id="tpms-rr-psi">35.7</span>
-            <span class="tpms-deg">34°C</span>
+          <div style="margin-top:0.6rem; font-size:0.65rem; color:var(--text-secondary); line-height:1.4;">
+            <div>Cold Baseline: <strong>36.0 PSI</strong></div>
+            <div>Alert Threshold: <strong>&lt; 28.0 PSI</strong></div>
+            <div>Regulation: <strong>US FMVSS 138 / ECE-R64</strong></div>
           </div>
         </div>
       </div>
 
-      <!-- OBD-II Diagnostic Trouble Code (DTC) Console -->
-      <div class="panel" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
-        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>OBD-II / UDS DIAGNOSTICS</span>
-          <span id="dtc-count-badge" class="badge-normal">0 DTC</span>
-        </div>
-        <div id="dtc-list-container" style="flex:1; overflow-y:auto; max-height:140px; margin-top:4px;">
-          <div style="padding:0.6rem; text-align:center; color:var(--text-muted); font-size:0.7rem;">
-            ✓ NO ACTIVE FAULT CODES (SAE J2012 COMPLIANT)
+      <!-- Tab 3: OBD-II Diagnostics Console -->
+      <div class="sidebar-tab-content" id="tab-obd">
+        <div class="panel" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+          <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>OBD-II / UDS DIAGNOSTICS</span>
+            <span id="dtc-count-badge" class="badge-normal">0 DTC</span>
           </div>
+          <div id="dtc-list-container" style="flex:1; overflow-y:auto; max-height:220px; margin-top:4px;">
+            <div style="padding:0.6rem; text-align:center; color:var(--text-muted); font-size:0.7rem;">
+              ✓ NO ACTIVE FAULT CODES (SAE J2012 COMPLIANT)
+            </div>
+          </div>
+          <button id="dtc-clear-btn" class="sound-toggle-btn" style="width:100%; margin-top:8px; justify-content:center; font-size:0.62rem;">
+            CLEAR STORED DTCs (SERVICE $04)
+          </button>
         </div>
-        <button id="dtc-clear-btn" class="sound-toggle-btn" style="width:100%; margin-top:4px; justify-content:center; font-size:0.6rem;">
-          CLEAR STORED DTCs (SERVICE $04)
-        </button>
       </div>
     </aside>
 
@@ -358,9 +382,19 @@
     <!-- Fault Injection Panel (Right Sidebar) -->
     <aside id="fault-panel">
       <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
-        <span>FAULT INJECTION</span>
-        <span style="font-size:0.6rem; color:var(--accent-amber); font-weight:700;">DEMO MODE</span>
+        <span>SAFETY FAULT LAB</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:0.6rem; color:var(--accent-amber); font-weight:700;">DEMO MODE</span>
+          <button id="btn-close-fault-panel" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1rem; line-height:1;" title="Collapse Lab Panel">&times;</button>
+        </div>
       </div>
+
+      <!-- 1-Click Automated Safety Showcase -->
+      <button class="fault-btn" id="btn-auto-showcase" style="border-color:var(--accent-green); background:rgba(0, 255, 136, 0.12); margin-bottom:0.4rem;">
+        <span class="fault-btn-icon">🎬</span>
+        <span class="fault-btn-text" style="color:var(--accent-green); font-weight:800;">1-Click Safety Showcase</span>
+        <span class="fault-btn-state" id="showcase-status" style="color:var(--accent-green);">START</span>
+      </button>
 
       <button class="fault-btn f-cpu" id="btn-fault-cpu">
         <span class="fault-btn-icon">⚡</span>
@@ -461,6 +495,19 @@
       </div>
     </footer>
   </div>
+
+  <!-- Floating Manual Drive Keyboard Instructions HUD -->
+  <div id="manual-drive-hud">
+    <span class="hud-pill-tag">🎮 MANUAL DRIVE</span>
+    <span><strong>[W]</strong> Accel</span>
+    <span><strong>[S]</strong> Brake</span>
+    <span><strong>[A]/[D]</strong> Steer</span>
+    <span><strong>[SPACE]</strong> Emergency ABS</span>
+    <button id="manual-hud-exit-btn">&times; EXIT</button>
+  </div>
+
+  <!-- Cockpit Toast Notifications Container -->
+  <div id="toast-container"></div>
 
   <!-- Scripts in dependency order -->
   <script src="js/cluster.js"></script>

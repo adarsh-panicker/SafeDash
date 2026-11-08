@@ -151,7 +151,7 @@ html, body {
 #app {
   display: grid;
   width: 100vw; height: 100vh;
-  grid-template-columns: 260px 1fr 260px;
+  grid-template-columns: 280px 1fr 280px;
   grid-template-rows: 52px 1fr 140px;
   grid-template-areas:
     "header  header  header"
@@ -159,6 +159,13 @@ html, body {
     "health  health  health";
   overflow: hidden;
   background: radial-gradient(circle at 50% 30%, rgba(20, 32, 64, 0.4) 0%, rgba(7, 10, 18, 0.95) 75%);
+  transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#app.fault-collapsed {
+  grid-template-columns: 280px 1fr 0px;
+}
+#app.fault-collapsed #fault-panel {
+  display: none !important;
 }
 
 /* ── Header Bar ──────────────────────────────────────────────────────────── */
@@ -287,7 +294,52 @@ html, body {
   background: var(--bg-panel-alt);
   backdrop-filter: blur(12px);
   border-right: 1px solid var(--border-subtle);
+  overflow-y: hidden;
+}
+
+/* Sidebar Tab Deck */
+.sidebar-tabs {
+  display: flex;
+  background: rgba(10, 16, 32, 0.85);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 0.2rem;
+}
+.sidebar-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 5px 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.sidebar-tab-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+.sidebar-tab-btn.active {
+  background: var(--accent-cyan);
+  color: #070a12;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+}
+.sidebar-tab-content {
+  display: none;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
   overflow-y: auto;
+}
+.sidebar-tab-content.active {
+  display: flex;
 }
 
 /* Fault Panel Right */
@@ -942,4 +994,101 @@ html, body {
 }
 .can-hex-bytes {
   color: #ffaa00; font-weight: 700; letter-spacing: 0.05em;
+}
+
+/* ── Interactive Gauge Click affordances ─────────────────────────────────── */
+#speedometer-canvas, #rpm-canvas {
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#speedometer-canvas:hover, #rpm-canvas:hover {
+  filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.25));
+}
+#speedometer-canvas:active, #rpm-canvas:active {
+  transform: scale(0.985);
+}
+
+/* ── Floating Manual Drive Instructions HUD ──────────────────────────────── */
+#manual-drive-hud {
+  position: fixed;
+  bottom: 148px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 12px;
+  background: rgba(11, 18, 36, 0.95);
+  border: 1px solid var(--accent-cyan);
+  box-shadow: 0 0 25px rgba(0, 229, 255, 0.35);
+  border-radius: 30px;
+  padding: 6px 16px;
+  z-index: 200;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  backdrop-filter: blur(10px);
+  animation: slideUp 0.25s ease;
+}
+#manual-drive-hud.active { display: flex; }
+#manual-drive-hud strong { color: var(--accent-cyan); }
+.hud-pill-tag {
+  background: var(--accent-cyan);
+  color: #070a12;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 0.62rem;
+}
+#manual-hud-exit-btn {
+  background: rgba(255, 34, 68, 0.2);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: all var(--transition-fast);
+}
+#manual-hud-exit-btn:hover {
+  background: var(--accent-red);
+  color: #fff;
+}
+
+/* ── Toast Notifications ─────────────────────────────────────────────────── */
+#toast-container {
+  position: fixed;
+  top: 64px;
+  right: 20px;
+  z-index: 10002;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.cockpit-toast {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid var(--accent-cyan);
+  box-shadow: 0 4px 20px rgba(0, 229, 255, 0.3);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(8px);
+  animation: toastFade 3s ease forwards;
+}
+@keyframes toastFade {
+  0%   { opacity: 0; transform: translateX(20px); }
+  10%  { opacity: 1; transform: translateX(0); }
+  85%  { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translate(-50%, 15px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
 }

@@ -1,3 +1,14 @@
+// SafeDash UI/UX Intuitive Extensions
+window.__speedUnit = 'kmh'; // 'kmh' or 'mph'
+window.showToast = function(icon, text) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'cockpit-toast';
+  toast.innerHTML = `<span style="font-size:1.1rem;">${icon}</span><span>${text}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 3100);
+};
 /**
  * SafeDash — cluster.js
  * Main gauge rendering engine & WebSocket telemetry handler
@@ -237,6 +248,12 @@ class ClusterRenderer {
     const endAngle   = toRad(400);
     const arcRange   = endAngle - startAngle;
 
+    // Unit toggle support (KM/H vs MPH)
+    const isMph = window.__speedUnit === 'mph';
+    const displaySpeed = isMph ? (speed * 0.621371) : speed;
+    const effMax = isMph ? 160 : maxSpeed;
+    const unitLabel = isMph ? 'MPH' : 'KM / H';
+
     // 1. Outer Metallic Bezel Ring
     ctx.save();
     ctx.beginPath();
@@ -269,7 +286,7 @@ class ClusterRenderer {
     ctx.stroke();
 
     // 3. Value arc & Needle light trail
-    const speedFrac = clamp(speed / maxSpeed, 0, 1);
+    const speedFrac = clamp(displaySpeed / effMax, 0, 1);
     const fillEnd   = startAngle + arcRange * speedFrac;
 
     if (speedFrac > 0.01) {
@@ -305,11 +322,11 @@ class ClusterRenderer {
     }
 
     // 4. Precision Ticks & Numbers
-    const tickStep = 20;
-    for (let v = 0; v <= maxSpeed; v += tickStep) {
-      const frac  = v / maxSpeed;
+    const tickStep = isMph ? 10 : 20;
+    for (let v = 0; v <= effMax; v += tickStep) {
+      const frac  = v / effMax;
       const angle = startAngle + arcRange * frac;
-      const isMajor = (v % 40 === 0);
+      const isMajor = isMph ? (v % 20 === 0) : (v % 40 === 0);
       const inner = R - (isMajor ? 20 : 12);
       const outer = R - 6;
 
@@ -320,10 +337,10 @@ class ClusterRenderer {
       ctx.lineWidth   = isMajor ? 2.5 : 1.2;
       ctx.stroke();
 
-      if (isMajor && v <= maxSpeed) {
+      if (isMajor && v <= effMax) {
         const lR = R - 34;
         ctx.font = Math.round(W * 0.045) + 'px sans-serif';
-        ctx.fillStyle   = v <= speed ? 'rgba(255, 255, 255, 0.95)' : 'rgba(120, 145, 185, 0.5)';
+        ctx.fillStyle   = v <= displaySpeed ? 'rgba(255, 255, 255, 0.95)' : 'rgba(120, 145, 185, 0.5)';
         ctx.textAlign   = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(String(v), cx + Math.cos(angle) * lR, cy + Math.sin(angle) * lR);
@@ -369,7 +386,7 @@ class ClusterRenderer {
     ctx.shadowBlur = 0;
 
     // 7. Large Digital Readout with Glow
-    const speedInt = Math.round(clamp(speed, 0, 999));
+    const speedInt = Math.round(clamp(displaySpeed, 0, 999));
     ctx.save();
     ctx.font = '800 ' + Math.round(W * 0.22) + 'px sans-serif';
     ctx.fillStyle = speed > 180 ? '#ff3355' : '#ffffff';
@@ -383,7 +400,7 @@ class ClusterRenderer {
     ctx.font = Math.round(W * 0.045) + 'px sans-serif';
     ctx.fillStyle = 'rgba(140, 170, 210, 0.8)';
     ctx.textAlign = 'center';
-    ctx.fillText('KM / H', cx, cy - R * 0.16 + W * 0.14);
+    ctx.fillText(unitLabel, cx, cy - R * 0.16 + W * 0.14);
   }
 
   drawRPMGauge (ctx, rpm, maxRPM, W, H) {
@@ -1659,6 +1676,76 @@ document.addEventListener('DOMContentLoaded', () => {
     canPause.addEventListener('click', () => {
       window.__canSnifferPaused = !window.__canSnifferPaused;
       canPause.textContent = window.__canSnifferPaused ? '▶ RESUME STREAM' : '⏸ PAUSE STREAM';
+      window.showToast?.(window.__canSnifferPaused ? '⏸' : '▶', window.__canSnifferPaused ? 'CAN Stream Paused' : 'CAN Stream Resumed');
+    });
+  }
+
+  // Sidebar Tab Switching
+  document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.sidebar-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.sidebar-tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      const target = document.getElementById('tab-' + btn.dataset.tab);
+      if (target) target.classList.add('active');
+      if (window.__audioEngine) window.__audioEngine.playChime(620, 0.06);
+    });
+  });
+
+  // Speedometer Tap Toggle (KM/H <-> MPH)
+  const spdCanvas = document.getElementById('speedometer-canvas');
+  if (spdCanvas) {
+    spdCanvas.addEventListener('click', () => {
+      window.__speedUnit = window.__speedUnit === 'mph' ? 'kmh' : 'mph';
+      if (window.__audioEngine) window.__audioEngine.playChime(780, 0.08);
+      window.showToast?.('⚡', `Speedometer Unit: ${window.__speedUnit.toUpperCase()}`);
+    });
+  }
+
+  // Right Gauge Tap Toggle (RPM <-> EV kW)
+  const rpmCanvas = document.getElementById('rpm-canvas');
+  if (rpmCanvas) {
+    rpmCanvas.addEventListener('click', () => {
+      window.__rightGaugeMode = window.__rightGaugeMode === 'power' ? 'rpm' : 'power';
+      const btnModeRpm = document.getElementById('btn-mode-rpm');
+      const btnModePwr = document.getElementById('btn-mode-power');
+      if (btnModeRpm && btnModePwr) {
+        btnModeRpm.classList.toggle('active', window.__rightGaugeMode === 'rpm');
+        btnModePwr.classList.toggle('active', window.__rightGaugeMode === 'power');
+      }
+      if (window.__audioEngine) window.__audioEngine.playChime(820, 0.08);
+      window.showToast?.('⚡', `Right Dial: ${window.__rightGaugeMode === 'power' ? 'EV Power & Regen (kW)' : 'Tachometer (RPM)'}`);
+    });
+  }
+
+  // Fault Lab Drawer Toggle
+  const appEl = document.getElementById('app');
+  const btnToggleLab = document.getElementById('btn-toggle-fault-lab');
+  const btnCloseLab  = document.getElementById('btn-close-fault-panel');
+
+  const toggleFaultLab = () => {
+    if (!appEl) return;
+    const isCollapsed = appEl.classList.toggle('fault-collapsed');
+    if (btnToggleLab) btnToggleLab.classList.toggle('active', !isCollapsed);
+    if (window.__audioEngine) window.__audioEngine.playChime(isCollapsed ? 480 : 720, 0.08);
+    window.showToast?.('⚡', isCollapsed ? 'Cockpit Full-Width Expanded' : 'Safety Fault Lab Opened');
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+  };
+
+  if (btnToggleLab) btnToggleLab.addEventListener('click', toggleFaultLab);
+  if (btnCloseLab)  btnCloseLab.addEventListener('click', toggleFaultLab);
+
+  // Blackbox Flight Recorder Export Toasts
+  const btnCsv = document.getElementById('export-csv-btn');
+  const btnJson = document.getElementById('export-json-btn');
+  if (btnCsv) {
+    btnCsv.addEventListener('click', () => {
+      window.showToast?.('💾', 'Exporting ASIL-D Blackbox Telemetry (CSV)');
+    });
+  }
+  if (btnJson) {
+    btnJson.addEventListener('click', () => {
+      window.showToast?.('💾', 'Exporting ASIL-D Blackbox Telemetry (JSON)');
     });
   }
 });
