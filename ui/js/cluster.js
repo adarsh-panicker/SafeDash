@@ -1748,6 +1748,29 @@ document.addEventListener('DOMContentLoaded', () => {
       window.showToast?.('💾', 'Exporting ASIL-D Blackbox Telemetry (JSON)');
     });
   }
+
+  // URL Query Parameters overrides (for automated screenshots & deep-linking)
+  const q = new URLSearchParams(window.location.search);
+  if (q.get('mode')) setDriveMode(q.get('mode'));
+  if (q.get('tab')) {
+    const tBtn = document.querySelector('.sidebar-tab-btn[data-tab="' + q.get('tab') + '"]');
+    if (tBtn) tBtn.click();
+  }
+  if (q.get('modal') === 'can') {
+    const cBtn = document.getElementById('can-sniffer-btn');
+    if (cBtn) cBtn.click();
+  }
+  if (q.get('view')) {
+    const vBtn = document.querySelector('.cluster-view-btn[data-view="' + q.get('view') + '"]');
+    if (vBtn) vBtn.click();
+  }
+  if (q.get('gauge') === 'power') {
+    const pBtn = document.getElementById('btn-mode-power');
+    if (pBtn) pBtn.click();
+  }
+  if (q.get('unit') === 'mph') {
+    window.__speedUnit = 'mph';
+  }
 });
 
 /* ── Global CAN Sniffer Frame Handler ────────────────────────────────────── */

@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050811" />
+      <stop offset="40%" stop-color="#0a1224" />
+      <stop offset="100%" stop-color="#04060d" />
+    </linearGradient>
+
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00e5ff" />
+      <stop offset="100%" stop-color="#00ff88" />
+    </linearGradient>
+
+    <radialGradient id="centerGlow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="rgba(0, 229, 255, 0.15)" />
+      <stop offset="100%" stop-color="rgba(0, 0, 0, 0)" />
+    </radialGradient>
+
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="400" fill="url(#bannerBg)" />
+  <rect width="1200" height="400" fill="url(#centerGlow)" />
+
+  <!-- Speedometer Arc Graphics in Background -->
+  <g opacity="0.18" stroke="#00e5ff" fill="none">
+    <circle cx="600" cy="200" r="160" stroke-width="2" stroke-dasharray="8 8" />
+    <circle cx="600" cy="200" r="130" stroke-width="1.5" />
+    <circle cx="600" cy="200" r="220" stroke-width="1" stroke-dasharray="4 12" />
+  </g>
+
+  <!-- Left Road Grid Lines (3D perspective feel) -->
+  <g opacity="0.12" stroke="#00e5ff" stroke-width="1.5">
+    <line x1="600" y1="200" x2="100" y2="400" />
+    <line x1="600" y1="200" x2="350" y2="400" />
+    <line x1="600" y1="200" x2="850" y2="400" />
+    <line x1="600" y1="200" x2="1100" y2="400" />
+  </g>
+
+  <!-- Center Content -->
+  <!-- Shield Icon -->
+  <g transform="translate(560, 45)" filter="url(#glow)">
+    <path d="M 40 5 L 75 22 L 75 60 C 75 80 40 95 40 95 C 40 95 5 80 5 60 L 5 22 Z"
+          fill="#0c1830" stroke="url(#cyanGrad)" stroke-width="2.5" />
+    <path d="M 22 55 A 20 20 0 1 1 58 55" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="3" />
+    <path d="M 22 55 A 20 20 0 0 1 50 35" fill="none" stroke="#00ff88" stroke-width="3" />
+    <circle cx="40" cy="50" r="3.5" fill="#00e5ff" />
+    <line x1="40" y1="50" x2="52" y2="38" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+  </g>
+
+  <!-- Title -->
+  <text x="600" y="195" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif"
+        font-size="64" font-weight="900" letter-spacing="2" fill="#ffffff" text-anchor="middle" filter="url(#glow)">
+    Safe<tspan fill="#00e5ff">Dash</tspan>
+  </text>
+
+  <!-- Subtitle -->
+  <text x="600" y="235" font-family="'SF Mono', 'Consolas', monospace"
+        font-size="16" font-weight="700" letter-spacing="4" fill="#94a3b8" text-anchor="middle">
+    ISO 26262 ASIL-D FAIL-SAFE DIGITAL COCKPIT • BLACKBERRY QNX SDP 8.0
+  </text>
+
+  <!-- Feature Pills -->
+  <g transform="translate(600, 265)">
+    <g transform="translate(-290, 0)">
+      <rect x="0" y="0" width="130" height="28" rx="14" fill="rgba(0,255,136,0.12)" stroke="#00ff88" stroke-width="1.2" />
+      <text x="65" y="18" font-family="'SF Mono', monospace" font-size="11" font-weight="700" fill="#00ff88" text-anchor="middle">ZERO-FREEZE RTOS</text>
+    </g>
+    <g transform="translate(-145, 0)">
+      <rect x="0" y="0" width="130" height="28" rx="14" fill="rgba(0,229,255,0.12)" stroke="#00e5ff" stroke-width="1.2" />
+      <text x="65" y="18" font-family="'SF Mono', monospace" font-size="11" font-weight="700" fill="#00e5ff" text-anchor="middle">CAN-FD TELEMETRY</text>
+    </g>
+    <g transform="translate(0, 0)">
+      <rect x="0" y="0" width="140" height="28" rx="14" fill="rgba(187,68,255,0.12)" stroke="#bb44ff" stroke-width="1.2" />
+      <text x="70" y="18" font-family="'SF Mono', monospace" font-size="11" font-weight="700" fill="#bb44ff" text-anchor="middle">2.5D RADAR VISION</text>
+    </g>
+    <g transform="translate(155, 0)">
+      <rect x="0" y="0" width="135" height="28" rx="14" fill="rgba(255,170,0,0.12)" stroke="#ffaa00" stroke-width="1.2" />
+      <text x="67" y="18" font-family="'SF Mono', monospace" font-size="11" font-weight="700" fill="#ffaa00" text-anchor="middle">FAULT INJECTION</text>
+    </g>
+  </g>
+
+  <!-- Author Badge -->
+  <g transform="translate(600, 345)">
+    <rect x="-160" y="-18" width="320" height="34" rx="17" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(0, 229, 255, 0.4)" stroke-width="1" />
+    <text x="0" y="4" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="13" font-weight="600" fill="#94a3b8" text-anchor="middle">
+      ENGINEERED BY <tspan fill="#ffffff" font-weight="800">ADARSH PANICKER</tspan>
+    </text>
+  </g>
+</svg>
