@@ -54,7 +54,9 @@ CAN_ID = {
     "AMBIENT_TEMP":      0x403,
     "PERFORMANCE_DYN":   0x105,
     "TPMS_STATUS":       0x205,
+    "ROAD_SURFACE_MU":   0x206,
     "NAV_PREVIEW":       0x305,
+    "DMS_MONITORING":    0x306,
 }
 
 # ---------------------------------------------------------------------------
@@ -80,6 +82,10 @@ class VehicleState:
     tpms_fr: float = 36.0
     tpms_rl: float = 35.5
     tpms_rr: float = 35.5
+    dms_attention_pct: float = 98.0
+    road_surface_mu: float = 0.85
+    incline_pitch_deg: float = 1.2
+    battery_preconditioning: bool = False
     nav_dist_m: int = 450
     nav_heading_deg: int = 315
     lane_dep_left: bool = False
@@ -294,11 +300,23 @@ def build_frames(state: VehicleState) -> list[dict]:
     frames.append(frame(CAN_ID["TPMS_STATUS"],
         struct.pack("BBBB", int(state.tpms_fl), int(state.tpms_fr), int(state.tpms_rl), int(state.tpms_rr))))
 
+    # Road Surface Friction & Gyro Inclinometer (CAN 0x206)
+    state.road_surface_mu = round(max(0.2, min(0.95, 0.85 + math.sin(state.frame_count * 0.01) * 0.04)), 2)
+    state.incline_pitch_deg = round(math.sin(state.frame_count * 0.015) * 2.5, 1)
+    frames.append(frame(CAN_ID["ROAD_SURFACE_MU"],
+        struct.pack(">Hh", int(state.road_surface_mu * 100), int(state.incline_pitch_deg * 10))))
+
     # Turn-by-Turn Navigation Preview (CAN 0x305)
     state.nav_dist_m = max(50, 600 - int((state.trip_km * 1000) % 600))
     state.nav_heading_deg = int((315 + math.sin(state.frame_count * 0.02) * 25) % 360)
     frames.append(frame(CAN_ID["NAV_PREVIEW"],
         struct.pack(">HH", state.nav_dist_m, state.nav_heading_deg)))
+
+    # Driver Monitoring System (CAN 0x306 - Euro NCAP 2026)
+    if state.dms_attention_pct > 70:
+        state.dms_attention_pct = round(max(70.0, min(100.0, 97.0 + math.sin(state.frame_count * 0.03) * 3.0)), 1)
+    frames.append(frame(CAN_ID["DMS_MONITORING"],
+        struct.pack("BB", int(state.dms_attention_pct), 1 if state.dms_attention_pct < 60 else 0)))
 
     # Comfort
     state.trip_km += state.speed_kmh / 3600.0 * 0.05  # 50ms tick
@@ -342,6 +360,9 @@ def write_stdout(frames: list[dict], state: VehicleState):
         "lane_dep_L":   state.lane_dep_left,
         "lane_dep_R":   state.lane_dep_right,
         "bspot_L":      state.blind_spot_left,
+        "dms_attention_pct": state.dms_attention_pct,
+        "road_surface_mu":   state.road_surface_mu,
+        "incline_pitch_deg": state.incline_pitch_deg,
         "frame_count":  state.frame_count,
         "ts":           round(time.time(), 3),
     }
@@ -375,6 +396,9 @@ def write_udp(frames: list[dict], state: VehicleState, sock: socket.socket, addr
         "lane_dep_L":   state.lane_dep_left,
         "lane_dep_R":   state.lane_dep_right,
         "bspot_L":      state.blind_spot_left,
+        "dms_attention_pct": state.dms_attention_pct,
+        "road_surface_mu":   state.road_surface_mu,
+        "incline_pitch_deg": state.incline_pitch_deg,
         "frame_count":  state.frame_count,
         "ts":           round(time.time(), 3),
         "frames":       frames,

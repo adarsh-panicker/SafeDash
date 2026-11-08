@@ -27,6 +27,7 @@ class FaultPanel {
       { id: 'btn-fault-dropout', fault: 'sensor_dropout',      label: 'Sensor Dropout' },
       { id: 'btn-fault-memory',  fault: 'memory_pressure',     label: 'Memory Pressure' },
       { id: 'btn-fault-adas',    fault: 'adas_alert',          label: 'ADAS Collision Alert' },
+      { id: 'btn-fault-dms',     fault: 'dms_distraction',     label: 'Driver Distraction (DMS)' },
       { id: 'btn-fault-clear',   fault: 'clear',               label: 'Clear All Faults' },
     ];
 
@@ -113,6 +114,15 @@ class FaultPanel {
         }
         if (fault === 'adas_alert' && window.__audioEngine) {
           window.__audioEngine.startCollisionAlarm();
+        } else if (fault === 'dms_distraction') {
+          if (window.__clusterState) {
+            window.__clusterState.dms_attention_pct = 42.0;
+            window.__clusterState.dms_distraction_active = true;
+          }
+          if (window.__audioEngine) {
+            window.__audioEngine.playDMSDistractionAlert();
+          }
+          window.showToast?.('👁️', 'Euro NCAP 2026: Driver Distraction Detected! Visual & Acoustic Escalation.');
         } else if (window.__audioEngine) {
           window.__audioEngine.playChime(350, 0.25);
         }
@@ -152,6 +162,10 @@ class FaultPanel {
   clearAllFaults() {
     this.activeFaults.clear();
     this.faultTimers.clear();
+    if (window.__clusterState) {
+      window.__clusterState.dms_attention_pct = 98.0;
+      window.__clusterState.dms_distraction_active = false;
+    }
 
     document.querySelectorAll('.fault-btn').forEach(btn => {
       btn.classList.remove('active-fault');
@@ -175,6 +189,7 @@ class FaultPanel {
         else if (fault === 'sensor_dropout') btnId = 'btn-fault-dropout';
         else if (fault === 'memory_pressure') btnId = 'btn-fault-memory';
         else if (fault === 'adas_alert') btnId = 'btn-fault-adas';
+        else if (fault === 'dms_distraction') btnId = 'btn-fault-dms';
 
         if (btnId) {
           const btn = document.getElementById(btnId);

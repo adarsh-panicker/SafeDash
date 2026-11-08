@@ -153,6 +153,10 @@
               <span class="telltale-icon">⚠</span>
               <span class="telltale-label">BRAKE</span>
             </div>
+            <div class="telltale dms" id="tt-dms" title="Euro NCAP 2026 Driver Monitoring System">
+              <span class="telltale-icon">👁️</span>
+              <span class="telltale-label">DMS</span>
+            </div>
           </div>
         </div>
 
@@ -184,6 +188,24 @@
               <button class="limit-adjust-btn" id="btn-acc-down" title="Decrease follow distance">−</button>
               <span id="acc-distance-val" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-cyan); font-weight:700;">50 m</span>
               <button class="limit-adjust-btn" id="btn-acc-up" title="Increase follow distance">+</button>
+            </div>
+          </div>
+
+          <div class="adas-row" style="margin-top:0.4rem; justify-content:space-between; align-items:center; background:rgba(0,217,255,0.06); padding:4px 6px; border-radius:6px;">
+            <div style="font-size:0.62rem; color:var(--text-secondary); font-weight:700;">DMS ATTENTION:</div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <div id="dms-attention-bar" style="width:50px; height:5px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
+                <div id="dms-attention-fill" style="width:98%; height:100%; background:var(--accent-green); transition:width 0.3s;"></div>
+              </div>
+              <span id="dms-attention-val" style="font-family:var(--font-mono); font-size:0.7rem; color:var(--accent-green); font-weight:700;">98%</span>
+            </div>
+          </div>
+
+          <div class="adas-row" style="margin-top:0.3rem; justify-content:space-between; align-items:center; background:rgba(255,184,0,0.06); padding:4px 6px; border-radius:6px;">
+            <div style="font-size:0.62rem; color:var(--text-secondary); font-weight:700;">ROAD FRICTION:</div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span id="road-mu-val" style="font-family:var(--font-mono); font-size:0.7rem; color:var(--accent-amber); font-weight:700;">μ = 0.85 DRY</span>
+              <span id="gyro-pitch-val" style="font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted);">+1.2°</span>
             </div>
           </div>
         </div>
@@ -317,12 +339,19 @@
         </div>
 
         <div id="battery-wrap" style="width:100%; max-width:200px;">
-          <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-bottom:0.2rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; margin-bottom:0.2rem;">
             <span style="color:var(--text-secondary);">TRACTION BATT</span>
-            <span id="battery-soc-pct" class="neon-cyan" style="font-family:var(--font-mono); font-weight:700;">85%</span>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <button id="btn-precondition" class="sound-toggle-btn" style="padding:1px 5px; font-size:0.55rem; border-color:var(--accent-cyan); color:var(--accent-cyan);" title="Fast-Charge Battery Thermal Conditioning (32°C)">⚡ PRECONDITION</button>
+              <span id="battery-soc-pct" class="neon-cyan" style="font-family:var(--font-mono); font-weight:700;">85%</span>
+            </div>
           </div>
           <div id="battery-bar-track">
             <div id="battery-bar-fill" style="width:85%;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.58rem; color:var(--text-muted); margin-top:2px;">
+            <span id="battery-temp-label">PACK: 25.0°C</span>
+            <span id="precondition-status" style="color:var(--accent-cyan); display:none; font-weight:700;">CONDITIONING ⚡</span>
           </div>
         </div>
 
@@ -427,6 +456,13 @@
       <button class="fault-btn f-adas" id="btn-fault-adas">
         <span class="fault-btn-icon">🚨</span>
         <span class="fault-btn-text">ADAS Crash Alert</span>
+        <span class="fault-countdown"></span>
+        <span class="fault-btn-state">READY</span>
+      </button>
+
+      <button class="fault-btn f-dms" id="btn-fault-dms">
+        <span class="fault-btn-icon">👁️</span>
+        <span class="fault-btn-text">Driver Distraction (DMS)</span>
         <span class="fault-countdown"></span>
         <span class="fault-btn-state">READY</span>
       </button>

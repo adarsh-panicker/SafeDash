@@ -48,6 +48,7 @@ extern "C" {
 #define CAN_ID_BATTERY_TEMP         0x202U   /* Battery pack temperature (°C) */
 #define CAN_ID_REGEN_POWER          0x203U   /* Regenerative braking power (kW * 10) */
 #define CAN_ID_TPMS_STATUS          0x205U   /* 4-wheel tire pressure (PSI) & temp */
+#define CAN_ID_ROAD_SURFACE_MU      0x206U   /* Road surface friction index (mu * 100) */
 
 /* -- ADAS (Priority: HIGH when active, LOW otherwise) -- */
 #define CAN_ID_LANE_DEPARTURE       0x300U   /* Lane departure warning */
@@ -55,6 +56,7 @@ extern "C" {
 #define CAN_ID_ADAPTIVE_CRUISE      0x302U   /* ACC target vehicle distance (m) */
 #define CAN_ID_TRAFFIC_SIGN         0x303U   /* Detected speed limit sign (km/h) */
 #define CAN_ID_NAV_PREVIEW          0x305U   /* Turn maneuver, distance (m), heading */
+#define CAN_ID_DMS_MONITORING       0x306U   /* Driver Monitoring System (Euro NCAP 2026) */
 
 /* -- Comfort & Infotainment (Priority: LOW) -- */
 #define CAN_ID_ODOMETER             0x400U   /* Total distance (km) */

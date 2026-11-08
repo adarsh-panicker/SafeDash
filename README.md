@@ -101,6 +101,19 @@ SafeDash proves **Freedom from Interference (FFI)** using the native microkernel
 
 ---
 
+### 8. Euro NCAP 2026 Driver Monitoring System (DMS), Road Friction Index & EV Fast-Charge Preconditioning
+> Compliance with upcoming **Euro NCAP 2026** vehicle safety mandates and next-gen EV power management:
+> - **Vision-Based Driver Monitoring System (DMS):** Real-time attention score algorithm monitoring gaze aversion and drowsiness with dedicated safety telltale (`👁️ DMS`) and multi-tone acoustic escalation.
+> - **Road Surface Friction Index ($\mu$) & Gyro Inclinometer:** Live road friction coefficient ($\mu = 0.85$ Dry down to $0.20$ Ice) paired with high-precision road pitch inclinometer (+/- deg).
+> - **EV Battery Fast-Charge Thermal Preconditioning:** Active heating loop dynamically conditioning the traction battery pack to optimal 32.0°C for peak 350 kW DC ultra-fast charging curves.
+> - **Directional Spatial Audio (QNX Sound Architecture):** Real-time stereo panning (`StereoPannerNode`) giving drivers directional spatial acoustic cues (-0.75 for Left hazards, +0.75 for Right blind spots).
+
+<p align="center">
+  <img src="docs/images/08_dms_euro_ncap_monitoring.png" alt="Euro NCAP 2026 DMS and Road Friction" width="95%" />
+</p>
+
+---
+
 ## 🏛️ System Architecture
 
 ```

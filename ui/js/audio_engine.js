@@ -33,6 +33,16 @@ class AudioEngine {
     this._bindControls();
   }
 
+  _createPanner(pan = 0.0) {
+    if (!this.ctx) return null;
+    if (typeof this.ctx.createStereoPanner === 'function') {
+      const panner = this.ctx.createStereoPanner();
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), this.ctx.currentTime);
+      return panner;
+    }
+    return null;
+  }
+
   _initContext() {
     if (!this.ctx) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -182,15 +192,19 @@ class AudioEngine {
 
   /* ── Turn Signal Relay Clicker ─────────────────────────────────────────── */
 
-  startTurnSignal() {
+  startTurnSignal(dir = 'both') {
     if (!this.enabled || !this.ctx || this.turnSignalActive) return;
     this.turnSignalActive = true;
+
+    // Spatial sound panning: -0.75 for Left, +0.75 for Right, 0.0 for hazard/both
+    const pan = dir === 'left' ? -0.75 : (dir === 'right' ? 0.75 : 0.0);
 
     let high = true;
     const click = () => {
       if (!this.turnSignalActive || !this.ctx) return;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
+      const panner = this._createPanner(pan);
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(high ? 1400 : 950, this.ctx.currentTime);
@@ -200,7 +214,12 @@ class AudioEngine {
       gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.035);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      if (panner) {
+        gain.connect(panner);
+        panner.connect(this.ctx.destination);
+      } else {
+        gain.connect(this.ctx.destination);
+      }
 
       osc.start();
       osc.stop(this.ctx.currentTime + 0.04);
@@ -220,11 +239,12 @@ class AudioEngine {
 
   /* ── General Chimes ────────────────────────────────────────────────────── */
 
-  playChime(freq = 523.25, duration = 0.2) {
+  playChime(freq = 523.25, duration = 0.2, pan = 0.0) {
     if (!this.enabled || !this.ctx) return;
 
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
+    const panner = this._createPanner(pan);
 
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
@@ -233,10 +253,25 @@ class AudioEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    if (panner) {
+      gain.connect(panner);
+      panner.connect(this.ctx.destination);
+    } else {
+      gain.connect(this.ctx.destination);
+    }
 
     osc.start();
     osc.stop(this.ctx.currentTime + duration);
+  }
+
+  playDMSDistractionAlert() {
+    if (!this.enabled || !this.ctx) return;
+    // Euro NCAP 2026 driver attention chime (ascending three-tone urgent chime)
+    [700, 880, 1050].forEach((freq, idx) => {
+      setTimeout(() => {
+        this.playChime(freq, 0.08, 0.0);
+      }, idx * 90);
+    });
   }
 }
 

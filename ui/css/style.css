@@ -572,7 +572,7 @@ html, body {
 
 /* Telltales */
 #telltales {
-  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.4rem;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem;
 }
 .telltale {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -590,6 +590,7 @@ html, body {
 .telltale.abs.active    { border-color: var(--accent-amber); box-shadow: var(--shadow-neon-amber); color: var(--accent-amber); }
 .telltale.airbag.active { border-color: var(--accent-red);   box-shadow: var(--shadow-neon-red);   color: var(--accent-red); }
 .telltale.collision.active { border-color: var(--accent-red); box-shadow: var(--shadow-neon-red); color: var(--accent-red); }
+.telltale.dms.active { border-color: var(--accent-amber); box-shadow: var(--shadow-neon-amber); color: var(--accent-amber); }
 @keyframes telltale-flash { from { opacity: 0.6; } to { opacity: 1.0; } }
 
 .telltale-icon { font-size: 1.3rem; line-height: 1; }
@@ -622,6 +623,7 @@ html, body {
 .fault-btn.f-dropout { border-color: var(--accent-orange); color: var(--accent-orange); }
 .fault-btn.f-memory  { border-color: var(--accent-purple); color: var(--accent-purple); }
 .fault-btn.f-adas    { border-color: var(--accent-red);    color: var(--accent-red); }
+.fault-btn.f-dms     { border-color: #f59e0b; color: #f59e0b; }
 .fault-btn.f-clear   { border-color: var(--accent-green);  color: var(--accent-green); }
 
 .fault-btn.active-fault {

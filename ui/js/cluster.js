@@ -91,6 +91,13 @@ const state = {
     street: 'QNX Innovation Expressway'
   },
 
+  /* Euro NCAP 2026 DMS & Road Dynamics */
+  dms_attention_pct: 98,
+  dms_distraction_active: false,
+  road_surface_mu: 0.85,
+  incline_pitch_deg: 1.2,
+  battery_preconditioning: false,
+
   /* Stats */
   frame_count: 0,
   error_count: 0,
@@ -1043,6 +1050,12 @@ class ClusterRenderer {
     pct.textContent = Math.round(socClamped) + '%';
     pct.style.color = socClamped < 20 ? C.red : socClamped < 40 ? C.amber : C.green;
 
+    const bTemp = document.getElementById('battery-temp-label');
+    if (bTemp) {
+      const t = state.batt_temp_c ?? 25.0;
+      bTemp.textContent = `PACK: ${t.toFixed(1)}°C`;
+    }
+
     if (regenKw > 0.1) {
       regen.textContent = `↻ REGEN  ${regenKw.toFixed(1)} kW`;
       regen.style.color = C.cyan;
@@ -1121,6 +1134,40 @@ class ClusterRenderer {
     const accVal = document.getElementById('acc-distance-val');
     if (accVal) accVal.textContent = state.acc_distance_m != null
       ? Math.round(disp.acc_distance_m) + ' m' : '--';
+
+    // DMS Attention Score Meter
+    const dmsVal = document.getElementById('dms-attention-val');
+    const dmsFill = document.getElementById('dms-attention-fill');
+    if (dmsVal && dmsFill) {
+      const att = Math.round(state.dms_attention_pct ?? 98);
+      dmsVal.textContent = att + '%';
+      dmsFill.style.width = att + '%';
+      if (att < 60) {
+        dmsVal.style.color = 'var(--accent-red)';
+        dmsFill.style.background = 'var(--accent-red)';
+      } else if (att < 80) {
+        dmsVal.style.color = 'var(--accent-amber)';
+        dmsFill.style.background = 'var(--accent-amber)';
+      } else {
+        dmsVal.style.color = 'var(--accent-green)';
+        dmsFill.style.background = 'var(--accent-green)';
+      }
+    }
+
+    // Road Surface Friction & Gyro Pitch
+    const roadMu = document.getElementById('road-mu-val');
+    const gyroPitch = document.getElementById('gyro-pitch-val');
+    if (roadMu) {
+      const mu = state.road_surface_mu ?? 0.85;
+      const cond = mu >= 0.75 ? 'DRY' : (mu >= 0.5 ? 'WET' : 'ICE');
+      roadMu.textContent = `μ = ${mu.toFixed(2)} ${cond}`;
+      roadMu.style.color = mu >= 0.75 ? 'var(--accent-amber)' : 'var(--accent-red)';
+    }
+    if (gyroPitch) {
+      const pitch = state.incline_pitch_deg ?? 1.2;
+      const sign = pitch >= 0 ? '+' : '';
+      gyroPitch.textContent = `${sign}${pitch.toFixed(1)}°`;
+    }
   }
 
   /* ── Telltales ────────────────────────────────────────────── */
@@ -1132,6 +1179,7 @@ class ClusterRenderer {
     setTelltale('tt-abs',       state.abs_active);
     setTelltale('tt-airbag',    state.airbag_fault);
     setTelltale('tt-collision', state.collision);
+    setTelltale('tt-dms',       (state.dms_attention_pct ?? 100) < 65 || state.dms_distraction_active);
 
     /* Full-screen collision flash */
     const overlay = document.getElementById('collision-overlay');
@@ -1293,6 +1341,11 @@ function normaliseTelemetry (data) {
     // key may be bspot_R or similar
     state.bspot_R = data.bspot_R;
   }
+  if (data.dms_attention_pct !== undefined && !state.dms_distraction_active) {
+    state.dms_attention_pct = data.dms_attention_pct;
+  }
+  if (data.road_surface_mu   !== undefined) state.road_surface_mu   = data.road_surface_mu;
+  if (data.incline_pitch_deg !== undefined) state.incline_pitch_deg = data.incline_pitch_deg;
   if (data.power_kw       !== undefined) state.power_kw       = data.power_kw;
   if (data.g_lat          !== undefined) state.g_lat          = data.g_lat;
   if (data.g_long         !== undefined) state.g_long         = data.g_long;
@@ -1619,6 +1672,35 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Battery Fast-Charge Thermal Preconditioning (Target 32.0°C)
+  const btnPrecond = document.getElementById('btn-precondition');
+  const precondStatus = document.getElementById('precondition-status');
+  let precondTimer = null;
+  if (btnPrecond) {
+    btnPrecond.addEventListener('click', () => {
+      state.battery_preconditioning = !state.battery_preconditioning;
+      btnPrecond.classList.toggle('active', state.battery_preconditioning);
+      if (precondStatus) {
+        precondStatus.style.display = state.battery_preconditioning ? 'inline' : 'none';
+      }
+      if (state.battery_preconditioning) {
+        if (window.__audioEngine) window.__audioEngine.playChime(880, 0.15);
+        window.showToast?.('⚡', 'EV Fast-Charge Thermal Conditioning Active (Target: 32.0°C)');
+        clearInterval(precondTimer);
+        precondTimer = setInterval(() => {
+          if (!state.battery_preconditioning) { clearInterval(precondTimer); return; }
+          if (state.batt_temp_c < 32.0) {
+            state.batt_temp_c = Math.min(32.0, state.batt_temp_c + 0.35);
+          }
+        }, 300);
+      } else {
+        clearInterval(precondTimer);
+        if (window.__audioEngine) window.__audioEngine.playChime(440, 0.1);
+        window.showToast?.('❄️', 'Battery Conditioning Complete / Standby');
+      }
+    });
+  }
+
   // View Switcher Buttons (DIALS / ADAS / TRACK)
   const mainEl = document.getElementById('main');
   document.querySelectorAll('.cluster-view-btn').forEach(btn => {
@@ -1789,7 +1871,9 @@ const CAN_NAME_MAP = {
   0x201: { name: 'Battery Pack Voltage', prio: 'MED' },
   0x203: { name: 'Regen Power Recovery', prio: 'MED' },
   0x205: { name: 'TPMS 4-Wheel Pressures', prio: 'MED' },
+  0x206: { name: 'Road Surface Friction (mu) & Gyro', prio: 'MED' },
   0x300: { name: 'Lane Departure Sensing', prio: 'HIGH' },
+  0x306: { name: 'Driver Monitoring System (DMS)', prio: 'CRITICAL' },
   0x301: { name: 'Blind Spot Radar', prio: 'HIGH' },
   0x302: { name: 'Adaptive Cruise Control', prio: 'HIGH' },
   0x303: { name: 'Traffic Sign Speed Limit', prio: 'MED' },
