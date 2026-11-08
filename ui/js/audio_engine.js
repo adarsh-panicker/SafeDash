@@ -242,4 +242,13 @@ class AudioEngine {
 
 document.addEventListener('DOMContentLoaded', () => {
   window.__audioEngine = new AudioEngine();
+
+  // Auto-resume audio on first user touch / click
+  const unlockAudio = () => {
+    if (window.__audioEngine && window.__audioEngine.ctx && window.__audioEngine.ctx.state === 'suspended') {
+      window.__audioEngine.ctx.resume();
+    }
+  };
+  document.addEventListener('pointerdown', unlockAudio, { passive: true });
+  document.addEventListener('keydown', unlockAudio, { passive: true });
 });

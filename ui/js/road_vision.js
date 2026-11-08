@@ -1,14 +1,15 @@
 /**
  * SafeDash — road_vision.js
- * 2.5D Perspective ADAS Road & Radar Visualizer
+ * High-Definition 3D Perspective ADAS Road & Radar Vision Engine
  * QNX Global Hackathon  |  Pure Vanilla Canvas (60 FPS)
  *
- * Renders:
- *   1. Moving perspective highway lanes with speed-synced dashed lines
- *   2. Dynamic lead vehicle rendered with wireframe aesthetic & distance radar
- *   3. Real-time Lane Departure Warning (lane line flashes neon amber when crossing)
- *   4. Blind Spot proximity silhouettes on adjacent left/right lanes
- *   5. Forward collision radar proximity rings (turns red under 20m)
+ * Implements Tesla FSD / Porsche InnoDrive aesthetic:
+ *   - 3D perspective highway with horizon glow and animated speed-synced grid
+ *   - Ego vehicle (our car) at bottom center with glowing taillights & headlight beams
+ *   - Forward millimeter-wave radar projection cone
+ *   - Dynamic lead vehicle with distance tracking & proximity radar rings
+ *   - Real-time lane departure boundary illumination
+ *   - Adjacent lane blind-spot proximity silhouettes
  */
 
 'use strict';
@@ -20,7 +21,8 @@ class RoadVisionRenderer {
     this.ctx = this.canvas.getContext('2d');
 
     this.offsetY = 0;
-    this.laneOffset = 0; // -1 (left departure) to +1 (right departure)
+    this.laneOffset = 0;
+    this.radarPulse = 0;
 
     this._resize();
     window.addEventListener('resize', () => this._resize());
@@ -28,15 +30,15 @@ class RoadVisionRenderer {
 
   _resize() {
     if (!this.canvas) return;
-    const rect = this.canvas.parentElement.getBoundingClientRect();
-    this.canvas.width = Math.max(220, Math.floor(rect.width));
-    this.canvas.height = Math.max(160, Math.floor(rect.height || 180));
+    const parent = this.canvas.parentElement;
+    const rect = parent ? parent.getBoundingClientRect() : null;
+    const w = rect ? rect.width : 340;
+    const h = rect ? rect.height : 200;
+
+    this.canvas.width = Math.max(280, Math.floor(w));
+    this.canvas.height = Math.max(180, Math.floor(h));
   }
 
-  /**
-   * Render frame
-   * @param {Object} state - Telemetry state
-   */
   render(state) {
     if (!this.canvas || !this.ctx) return;
     const ctx = this.ctx;
@@ -45,24 +47,39 @@ class RoadVisionRenderer {
 
     ctx.clearRect(0, 0, W, H);
 
-    // Horizon coordinates
-    const horizonY = H * 0.22;
-    const horizonW = W * 0.16;
-    const roadBottomW = W * 0.88;
+    const horizonY = H * 0.20;
+    const horizonW = W * 0.18;
+    const roadBottomW = W * 0.92;
     const cx = W * 0.5;
 
-    // Shift road position based on lane departure
+    // Smooth lane shift on lane departure
     let targetOffset = 0;
-    if (state.lane_dep_L) targetOffset = -22;
-    if (state.lane_dep_R) targetOffset = 22;
-    this.laneOffset += (targetOffset - this.laneOffset) * 0.1;
+    if (state.lane_dep_L) targetOffset = -28;
+    if (state.lane_dep_R) targetOffset = 28;
+    this.laneOffset += (targetOffset - this.laneOffset) * 0.08;
 
     const baseCx = cx + this.laneOffset;
 
-    // Road surface gradient
+    /* 1. Horizon & Sky Glow */
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+    skyGrad.addColorStop(0, '#060a14');
+    skyGrad.addColorStop(1, 'rgba(15, 23, 42, 0.8)');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, horizonY);
+
+    // Horizon line with subtle cyan glow
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, horizonY);
+    ctx.lineTo(W, horizonY);
+    ctx.stroke();
+
+    /* 2. 3D Perspective Road Surface */
     const roadGrad = ctx.createLinearGradient(0, horizonY, 0, H);
-    roadGrad.addColorStop(0, 'rgba(15, 23, 42, 0.4)');
-    roadGrad.addColorStop(1, 'rgba(10, 14, 26, 0.95)');
+    roadGrad.addColorStop(0, 'rgba(14, 22, 40, 0.6)');
+    roadGrad.addColorStop(0.5, 'rgba(10, 15, 30, 0.9)');
+    roadGrad.addColorStop(1, 'rgba(6, 10, 20, 0.98)');
 
     ctx.fillStyle = roadGrad;
     ctx.beginPath();
@@ -73,90 +90,172 @@ class RoadVisionRenderer {
     ctx.closePath();
     ctx.fill();
 
-    // Outer road borders
-    const borderLeftColor = state.lane_dep_L ? '#ffaa00' : 'rgba(0, 229, 255, 0.4)';
-    const borderRightColor = state.lane_dep_R ? '#ffaa00' : 'rgba(0, 229, 255, 0.4)';
-
-    this._drawRoadLine(ctx, baseCx - horizonW * 0.5, horizonY, baseCx - roadBottomW * 0.5, H, borderLeftColor, state.lane_dep_L ? 3 : 1.5);
-    this._drawRoadLine(ctx, baseCx + horizonW * 0.5, horizonY, baseCx + roadBottomW * 0.5, H, borderRightColor, state.lane_dep_R ? 3 : 1.5);
-
-    // Speed-based dashed center lane markings
+    /* 3. Speed-synced 3D Horizontal Road Grid */
     const speed = Math.max(5, state.speed_kmh || 0);
-    this.offsetY = (this.offsetY + (speed * 0.08)) % 40;
+    this.offsetY = (this.offsetY + (speed * 0.06)) % 40;
 
-    // Draw dashed lane strips
     ctx.save();
-    ctx.setLineDash([12, 14]);
-    ctx.lineDashOffset = -this.offsetY;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 7; i++) {
+      const normY = ((i * 35 + this.offsetY) % 240) / 240;
+      const py = horizonY + Math.pow(normY, 1.8) * (H - horizonY);
+      const halfW = (horizonW * 0.5) + normY * ((roadBottomW - horizonW) * 0.5);
 
-    // Left lane dash
-    const leftDashHorizon = baseCx - horizonW * 0.18;
-    const leftDashBottom = baseCx - roadBottomW * 0.18;
-    this._drawRoadLine(ctx, leftDashHorizon, horizonY, leftDashBottom, H, 'rgba(0, 229, 255, 0.35)', 1.5);
-
-    // Right lane dash
-    const rightDashHorizon = baseCx + horizonW * 0.18;
-    const rightDashBottom = baseCx + roadBottomW * 0.18;
-    this._drawRoadLine(ctx, rightDashHorizon, horizonY, rightDashBottom, H, 'rgba(0, 229, 255, 0.35)', 1.5);
-
+      ctx.strokeStyle = `rgba(0, 229, 255, ${0.03 + normY * 0.12})`;
+      ctx.beginPath();
+      ctx.moveTo(baseCx - halfW, py);
+      ctx.lineTo(baseCx + halfW, py);
+      ctx.stroke();
+    }
     ctx.restore();
 
-    // Draw Lead Vehicle & ACC Distance Radar
+    /* 4. Road Boundaries (Turn neon amber on lane departure) */
+    const leftBorderColor = state.lane_dep_L ? '#ffaa00' : 'rgba(0, 229, 255, 0.45)';
+    const rightBorderColor = state.lane_dep_R ? '#ffaa00' : 'rgba(0, 229, 255, 0.45)';
+
+    this._drawGlowLine(ctx, baseCx - horizonW * 0.5, horizonY, baseCx - roadBottomW * 0.5, H, leftBorderColor, state.lane_dep_L ? 3 : 1.8, state.lane_dep_L ? 10 : 0);
+    this._drawGlowLine(ctx, baseCx + horizonW * 0.5, horizonY, baseCx + roadBottomW * 0.5, H, rightBorderColor, state.lane_dep_R ? 3 : 1.8, state.lane_dep_R ? 10 : 0);
+
+    /* 5. Dashed Center Lane Dividers */
+    ctx.save();
+    ctx.setLineDash([16, 18]);
+    ctx.lineDashOffset = -this.offsetY * 1.5;
+
+    const leftDashHorizon = baseCx - horizonW * 0.18;
+    const leftDashBottom  = baseCx - roadBottomW * 0.18;
+    this._drawLine(ctx, leftDashHorizon, horizonY, leftDashBottom, H, 'rgba(0, 229, 255, 0.4)', 1.5);
+
+    const rightDashHorizon = baseCx + horizonW * 0.18;
+    const rightDashBottom  = baseCx + roadBottomW * 0.18;
+    this._drawLine(ctx, rightDashHorizon, horizonY, rightDashBottom, H, 'rgba(0, 229, 255, 0.4)', 1.5);
+    ctx.restore();
+
+    /* 6. Forward Millimeter-Wave Radar Cone */
+    this.radarPulse = (this.radarPulse + 0.03) % 1;
+    ctx.save();
+    const radarGrad = ctx.createRadialGradient(baseCx, H - 30, 20, baseCx, horizonY, H * 0.7);
+    const isCritical = state.collision || (state.acc_distance_m && state.acc_distance_m < 25);
+    const radarColor = isCritical ? 'rgba(255, 34, 68,' : 'rgba(0, 229, 255,';
+
+    radarGrad.addColorStop(0, `${radarColor} 0.15)`);
+    radarGrad.addColorStop(0.6, `${radarColor} 0.05)`);
+    radarGrad.addColorStop(1, `${radarColor} 0.0)`);
+
+    ctx.fillStyle = radarGrad;
+    ctx.beginPath();
+    ctx.moveTo(baseCx, H - 25);
+    ctx.lineTo(baseCx - roadBottomW * 0.28, horizonY + 20);
+    ctx.lineTo(baseCx + roadBottomW * 0.28, horizonY + 20);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    /* 7. Lead Vehicle Ahead */
     const accDist = Math.max(10, Math.min(100, state.acc_distance_m || 45));
-    const distNorm = (accDist - 10) / 90; // 0 = close (bottom), 1 = far (horizon)
-    const carY = horizonY + (1.0 - distNorm) * (H * 0.62);
-    const carScale = 0.4 + (1.0 - distNorm) * 0.6;
-    const carW = 44 * carScale;
-    const carH = 26 * carScale;
+    const distNorm = (accDist - 10) / 90;
+    const leadY = horizonY + (1.0 - Math.pow(distNorm, 0.7)) * (H * 0.58);
+    const leadScale = 0.45 + (1.0 - distNorm) * 0.65;
+    const leadW = 46 * leadScale;
+    const leadH = 26 * leadScale;
 
-    // Collision warning threshold (< 25m)
-    const isCritical = state.collision || accDist < 25;
-    const radarColor = isCritical ? '#ff2244' : (accDist < 45 ? '#ffaa00' : '#00e5ff');
-
-    // Radar distance rings on road
-    ctx.strokeStyle = radarColor;
+    // Proximity Radar Rings under lead vehicle
+    const ringColor = isCritical ? '#ff2244' : (accDist < 45 ? '#ffaa00' : '#00e5ff');
+    ctx.save();
+    ctx.strokeStyle = ringColor;
     ctx.lineWidth = isCritical ? 2.5 : 1.2;
+    ctx.shadowColor = ringColor;
+    ctx.shadowBlur = isCritical ? 12 : 4;
     ctx.beginPath();
-    ctx.ellipse(baseCx, carY + carH * 0.6, carW * 1.3, carH * 0.45, 0, 0, Math.PI * 2);
+    ctx.ellipse(baseCx, leadY + leadH * 0.5, leadW * 1.3, leadH * 0.4, 0, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.restore();
 
-    // Lead vehicle wireframe box
-    ctx.fillStyle = isCritical ? 'rgba(255, 34, 68, 0.3)' : 'rgba(0, 229, 255, 0.2)';
-    ctx.strokeStyle = radarColor;
+    // Lead vehicle body
+    ctx.save();
+    ctx.fillStyle = isCritical ? 'rgba(255, 34, 68, 0.35)' : 'rgba(15, 23, 42, 0.85)';
+    ctx.strokeStyle = ringColor;
     ctx.lineWidth = 1.5;
-
     ctx.beginPath();
-    ctx.roundRect(baseCx - carW * 0.5, carY - carH * 0.5, carW, carH, 4 * carScale);
+    ctx.roundRect(baseCx - leadW * 0.5, leadY - leadH * 0.5, leadW, leadH, 4 * leadScale);
     ctx.fill();
     ctx.stroke();
 
     // Lead vehicle taillights
-    ctx.fillStyle = isCritical ? '#ff0000' : '#ff4444';
-    ctx.shadowColor = '#ff0000';
-    ctx.shadowBlur = isCritical ? 10 : 4;
+    ctx.fillStyle = isCritical ? '#ff0033' : '#ff3344';
+    ctx.shadowColor = '#ff0033';
+    ctx.shadowBlur = isCritical ? 14 : 6;
+    const tailW = 7 * leadScale;
+    const tailH = 3 * leadScale;
+    ctx.fillRect(baseCx - leadW * 0.44, leadY + leadH * 0.12, tailW, tailH);
+    ctx.fillRect(baseCx + leadW * 0.44 - tailW, leadY + leadH * 0.12, tailW, tailH);
+    ctx.restore();
 
-    const tailW = 6 * carScale;
-    const tailH = 3 * carScale;
-    ctx.fillRect(baseCx - carW * 0.45, carY + carH * 0.15, tailW, tailH);
-    ctx.fillRect(baseCx + carW * 0.45 - tailW, carY + carH * 0.15, tailW, tailH);
-    ctx.shadowBlur = 0;
-
-    // Distance badge floating above lead car
+    // Floating Distance Badge
+    ctx.save();
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.max(9, Math.round(11 * carScale))}px monospace`;
+    ctx.font = `bold ${Math.max(10, Math.round(11 * leadScale))}px -apple-system, monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText(`${Math.round(accDist)}m`, baseCx, carY - carH * 0.65);
+    ctx.shadowColor = '#000000';
+    ctx.shadowBlur = 4;
+    ctx.fillText(`${Math.round(accDist)} m`, baseCx, leadY - leadH * 0.65);
+    ctx.restore();
 
-    // Blind spot indicator silhouettes
+    /* 8. Ego Vehicle (Our Car) at bottom center */
+    const egoW = 54;
+    const egoH = 32;
+    const egoY = H - 22;
+
+    ctx.save();
+    // Headlight beam illumination (Adaptive Matrix / High Beam)
+    const isHigh = !!this.highBeam;
+    const beamReach = isHigh ? 125 : 65;
+    const beamOpacity = isHigh ? 0.45 : 0.22;
+    const beamGrad = ctx.createRadialGradient(baseCx, egoY - 10, 10, baseCx, egoY - beamReach, beamReach);
+    beamGrad.addColorStop(0, `rgba(230, 245, 255, ${beamOpacity})`);
+    beamGrad.addColorStop(0.7, `rgba(0, 229, 255, ${beamOpacity * 0.4})`);
+    beamGrad.addColorStop(1, 'rgba(0, 229, 255, 0)');
+    ctx.fillStyle = beamGrad;
+    ctx.beginPath();
+    ctx.moveTo(baseCx - egoW * 0.4, egoY - 6);
+    ctx.lineTo(baseCx - egoW * (isHigh ? 1.0 : 0.7), egoY - beamReach);
+    ctx.lineTo(baseCx + egoW * (isHigh ? 1.0 : 0.7), egoY - beamReach);
+    ctx.lineTo(baseCx + egoW * 0.4, egoY - 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Ego car body
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.7)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.roundRect(baseCx - egoW * 0.5, egoY - egoH * 0.5, egoW, egoH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Windshield
+    ctx.fillStyle = 'rgba(0, 229, 255, 0.25)';
+    ctx.beginPath();
+    ctx.roundRect(baseCx - egoW * 0.35, egoY - egoH * 0.4, egoW * 0.7, egoH * 0.35, 3);
+    ctx.fill();
+
+    // Ego taillights
+    ctx.fillStyle = '#ff2244';
+    ctx.shadowColor = '#ff2244';
+    ctx.shadowBlur = 8;
+    ctx.fillRect(baseCx - egoW * 0.42, egoY + egoH * 0.25, 8, 4);
+    ctx.fillRect(baseCx + egoW * 0.42 - 8, egoY + egoH * 0.25, 8, 4);
+    ctx.restore();
+
+    /* 9. Blind-Spot Proximity Silhouettes */
     if (state.bspot_L) {
-      this._drawBlindSpotCar(ctx, baseCx - roadBottomW * 0.38, H * 0.75, '#ffaa00', 'LEFT');
+      this._drawBlindSpotCar(ctx, baseCx - roadBottomW * 0.38, H * 0.72, '#ffaa00', 'LEFT');
     }
     if (state.bspot_R) {
-      this._drawBlindSpotCar(ctx, baseCx + roadBottomW * 0.38, H * 0.75, '#ffaa00', 'RIGHT');
+      this._drawBlindSpotCar(ctx, baseCx + roadBottomW * 0.38, H * 0.72, '#ffaa00', 'RIGHT');
     }
   }
 
-  _drawRoadLine(ctx, x1, y1, x2, y2, color, width) {
+  _drawLine(ctx, x1, y1, x2, y2, color, width) {
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.beginPath();
@@ -165,19 +264,38 @@ class RoadVisionRenderer {
     ctx.stroke();
   }
 
+  _drawGlowLine(ctx, x1, y1, x2, y2, color, width, blur) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    if (blur > 0) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = blur;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   _drawBlindSpotCar(ctx, x, y, color, label) {
+    ctx.save();
     ctx.fillStyle = 'rgba(255, 170, 0, 0.25)';
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
     ctx.beginPath();
-    ctx.roundRect(x - 16, y - 10, 32, 20, 4);
+    ctx.roundRect(x - 18, y - 12, 36, 24, 4);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = color;
-    ctx.font = '8px monospace';
+    ctx.font = 'bold 8px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`BS ${label}`, x, y + 2);
+    ctx.fillText(`BS ${label}`, x, y + 3);
+    ctx.restore();
   }
 }
 

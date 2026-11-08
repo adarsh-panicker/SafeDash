@@ -97,15 +97,18 @@ class ClusterRenderer {
 
   _setupCanvases () {
     const dpr = this._dpr;
-    // Speedometer — large
-    const spdSize = Math.min(window.innerWidth * 0.26, window.innerHeight * 0.46, 320);
-    this._setCanvas(this.spdCanvas, spdSize, spdSize);
-    // RPM — slightly smaller
-    const rpmSize = Math.min(window.innerWidth * 0.20, window.innerHeight * 0.38, 240);
-    this._setCanvas(this.rpmCanvas, rpmSize, rpmSize);
-    // Temp — small
-    const tempSize = 110;
-    this._setCanvas(this.tempCanvas, tempSize, tempSize);
+    const spdWrap = document.getElementById('speedometer-wrap');
+    const rpmWrap = document.getElementById('rpm-wrap');
+
+    const spdRect = spdWrap ? spdWrap.getBoundingClientRect() : null;
+    const rpmRect = rpmWrap ? rpmWrap.getBoundingClientRect() : null;
+
+    const spdSize = spdRect ? Math.min(spdRect.width * 0.98, spdRect.height * 0.98, 480) : 400;
+    const rpmSize = rpmRect ? Math.min(rpmRect.width * 0.98, rpmRect.height * 0.98, 480) : 400;
+
+    this._setCanvas(this.spdCanvas, Math.max(300, spdSize), Math.max(300, spdSize));
+    this._setCanvas(this.rpmCanvas, Math.max(300, rpmSize), Math.max(300, rpmSize));
+    this._setCanvas(this.tempCanvas, 140, 100);
   }
 
   _setCanvas (canvas, w, h) {
@@ -175,242 +178,336 @@ class ClusterRenderer {
     }
   }
 
-  /* ── Speedometer ──────────────────────────────────────────── */
   drawSpeedometer (ctx, speed, maxSpeed, W, H) {
-    const cx = W / 2, cy = H / 2 + H * 0.04;
+    const cx = W / 2, cy = H / 2 + H * 0.02;
     const R  = Math.min(W, H) * 0.44;
-    const startAngle = toRad(145);
-    const endAngle   = toRad(395);  // 250° sweep
+    const startAngle = toRad(140);
+    const endAngle   = toRad(400);
     const arcRange   = endAngle - startAngle;
 
-    /* Track arc */
+    // 1. Outer Metallic Bezel Ring
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 14, 0, Math.PI * 2);
+    const bezelGrad = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+    bezelGrad.addColorStop(0,   'rgba(80, 100, 140, 0.45)');
+    bezelGrad.addColorStop(0.5, 'rgba(20, 30, 50, 0.2)');
+    bezelGrad.addColorStop(1,   'rgba(80, 100, 140, 0.45)');
+    ctx.strokeStyle = bezelGrad;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Dial face radial gradient
+    const dialGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, R);
+    dialGrad.addColorStop(0,   'rgba(18, 26, 48, 0.55)');
+    dialGrad.addColorStop(0.7, 'rgba(10, 15, 30, 0.85)');
+    dialGrad.addColorStop(1,   'rgba(6, 10, 20, 0.95)');
+    ctx.fillStyle = dialGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Track background arc
     ctx.beginPath();
     ctx.arc(cx, cy, R, startAngle, endAngle);
-    ctx.strokeStyle = C.track;
-    ctx.lineWidth   = 14;
+    ctx.strokeStyle = 'rgba(26, 38, 70, 0.65)';
+    ctx.lineWidth   = 16;
     ctx.lineCap     = 'round';
     ctx.stroke();
 
-    /* Value arc — gradient green → cyan */
+    // 3. Value arc & Needle light trail
     const speedFrac = clamp(speed / maxSpeed, 0, 1);
     const fillEnd   = startAngle + arcRange * speedFrac;
 
-    if (speedFrac > 0) {
+    if (speedFrac > 0.01) {
+      // Translucent light sweep cone
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R - 8, startAngle, fillEnd);
+      ctx.closePath();
+      const sweepGrad = ctx.createRadialGradient(cx, cy, 20, cx, cy, R);
+      sweepGrad.addColorStop(0, 'rgba(0, 229, 255, 0.01)');
+      sweepGrad.addColorStop(1, speed > 180 ? 'rgba(255, 34, 68, 0.12)' : 'rgba(0, 229, 255, 0.12)');
+      ctx.fillStyle = sweepGrad;
+      ctx.fill();
+      ctx.restore();
+
+      // Glowing Value Arc
       const grad = ctx.createLinearGradient(cx - R, cy, cx + R, cy);
       grad.addColorStop(0,   C.green);
-      grad.addColorStop(0.5, C.cyan);
+      grad.addColorStop(0.6, C.cyan);
       grad.addColorStop(1,   speed > 180 ? C.red : C.cyan);
+
+      ctx.save();
+      ctx.shadowColor = speed > 180 ? C.red : C.cyan;
+      ctx.shadowBlur  = 16;
       ctx.beginPath();
       ctx.arc(cx, cy, R, startAngle, fillEnd);
       ctx.strokeStyle = grad;
-      ctx.lineWidth   = 14;
+      ctx.lineWidth   = 16;
       ctx.lineCap     = 'round';
-      ctx.stroke();
-    }
-
-    /* Glow on arc */
-    if (speedFrac > 0) {
-      ctx.save();
-      ctx.shadowColor = speed > 180 ? C.red : C.cyan;
-      ctx.shadowBlur  = 18;
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, startAngle, fillEnd);
-      ctx.strokeStyle = 'transparent';
-      ctx.lineWidth   = 1;
       ctx.stroke();
       ctx.restore();
     }
 
-    /* Tick marks */
+    // 4. Precision Ticks & Numbers
     const tickStep = 20;
     for (let v = 0; v <= maxSpeed; v += tickStep) {
       const frac  = v / maxSpeed;
       const angle = startAngle + arcRange * frac;
-      const isMajor = (v % 60 === 0);
-      const inner = R - (isMajor ? 22 : 14);
-      const outer = R - 4;
+      const isMajor = (v % 40 === 0);
+      const inner = R - (isMajor ? 20 : 12);
+      const outer = R - 6;
 
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
       ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
-      ctx.strokeStyle = isMajor ? C.white : C.textMuted;
-      ctx.lineWidth   = isMajor ? 2 : 1;
+      ctx.strokeStyle = isMajor ? 'rgba(255, 255, 255, 0.85)' : 'rgba(100, 130, 175, 0.45)';
+      ctx.lineWidth   = isMajor ? 2.5 : 1.2;
       ctx.stroke();
 
       if (isMajor && v <= maxSpeed) {
-        const lR = R - 36;
-        ctx.font = `600 ${Math.round(W * 0.055)}px 'Courier New', monospace`;
-        ctx.fillStyle   = C.textMuted;
+        const lR = R - 34;
+        ctx.font = Math.round(W * 0.045) + 'px sans-serif';
+        ctx.fillStyle   = v <= speed ? 'rgba(255, 255, 255, 0.95)' : 'rgba(120, 145, 185, 0.5)';
         ctx.textAlign   = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(String(v), cx + Math.cos(angle) * lR, cy + Math.sin(angle) * lR);
       }
     }
 
-    /* Needle */
+    // 5. Needle with Light Glow
     const needleAngle = startAngle + arcRange * speedFrac;
-    const nLen = R - 20;
-    const nW   = 3;
+    const nLen = R - 16;
+
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(needleAngle);
+    ctx.shadowColor = speed > 180 ? C.red : C.cyan;
+    ctx.shadowBlur  = 14;
+
     const needleGrad = ctx.createLinearGradient(0, 0, nLen, 0);
-    needleGrad.addColorStop(0,   'rgba(255,255,255,0.1)');
-    needleGrad.addColorStop(0.8, C.white);
-    needleGrad.addColorStop(1,   speed > 180 ? C.red : C.cyan);
+    needleGrad.addColorStop(0,   'rgba(255, 255, 255, 0.2)');
+    needleGrad.addColorStop(0.7, '#ffffff');
+    needleGrad.addColorStop(1,   speed > 180 ? '#ff2244' : '#00e5ff');
+
     ctx.beginPath();
-    ctx.moveTo(-18, 0);
+    ctx.moveTo(-16, 0);
     ctx.lineTo(nLen, 0);
     ctx.strokeStyle = needleGrad;
-    ctx.lineWidth   = nW;
+    ctx.lineWidth   = 3.5;
     ctx.lineCap     = 'round';
-    ctx.shadowColor = C.cyan;
-    ctx.shadowBlur  = 12;
     ctx.stroke();
     ctx.restore();
 
-    /* Needle pivot */
+    // 6. Chrome Needle Hub / Pivot
     ctx.beginPath();
-    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
-    ctx.fillStyle = C.white;
-    ctx.shadowColor = C.cyan;
-    ctx.shadowBlur  = 15;
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fillStyle = speed > 180 ? C.red : C.cyan;
+    ctx.shadowColor = speed > 180 ? C.red : C.cyan;
+    ctx.shadowBlur = 10;
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    /* Digital readout */
+    // 7. Large Digital Readout with Glow
     const speedInt = Math.round(clamp(speed, 0, 999));
-    ctx.font = `900 ${Math.round(W * 0.20)}px 'Courier New', monospace`;
-    ctx.fillStyle = speed > 180 ? C.red : C.white;
+    ctx.save();
+    ctx.font = '800 ' + Math.round(W * 0.22) + 'px sans-serif';
+    ctx.fillStyle = speed > 180 ? '#ff3355' : '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    if (speed > 180) {
-      ctx.shadowColor = C.red; ctx.shadowBlur = 20;
-    }
-    ctx.fillText(String(speedInt).padStart(3, ' '), cx, cy - R * 0.25);
-    ctx.shadowBlur = 0;
+    ctx.shadowColor = speed > 180 ? 'rgba(255, 34, 68, 0.6)' : 'rgba(0, 229, 255, 0.5)';
+    ctx.shadowBlur = 20;
+    ctx.fillText(String(speedInt), cx, cy - R * 0.16);
+    ctx.restore();
 
-    ctx.font = `500 ${Math.round(W * 0.07)}px sans-serif`;
-    ctx.fillStyle = C.textMuted;
-    ctx.fillText('km/h', cx, cy - R * 0.25 + W * 0.13);
+    ctx.font = Math.round(W * 0.045) + 'px sans-serif';
+    ctx.fillStyle = 'rgba(140, 170, 210, 0.8)';
+    ctx.textAlign = 'center';
+    ctx.fillText('KM / H', cx, cy - R * 0.16 + W * 0.14);
   }
 
-  /* ── RPM Gauge ────────────────────────────────────────────── */
   drawRPMGauge (ctx, rpm, maxRPM, W, H) {
-    const cx = W / 2, cy = H / 2 + H * 0.04;
-    const R  = Math.min(W, H) * 0.42;
-    const startAngle = toRad(150);
-    const endAngle   = toRad(390);
+    const cx = W / 2, cy = H / 2 + H * 0.02;
+    const R  = Math.min(W, H) * 0.44;
+    const startAngle = toRad(140);
+    const endAngle   = toRad(400);
     const arcRange   = endAngle - startAngle;
     const redlineFrac = 6500 / maxRPM;
 
-    /* Track */
+    // 1. Outer Metallic Bezel Ring
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 14, 0, Math.PI * 2);
+    const bezelGrad = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+    bezelGrad.addColorStop(0,   'rgba(80, 100, 140, 0.45)');
+    bezelGrad.addColorStop(0.5, 'rgba(20, 30, 50, 0.2)');
+    bezelGrad.addColorStop(1,   'rgba(80, 100, 140, 0.45)');
+    ctx.strokeStyle = bezelGrad;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Dial face radial gradient
+    const dialGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, R);
+    dialGrad.addColorStop(0,   'rgba(18, 26, 48, 0.55)');
+    dialGrad.addColorStop(0.7, 'rgba(10, 15, 30, 0.85)');
+    dialGrad.addColorStop(1,   'rgba(6, 10, 20, 0.95)');
+    ctx.fillStyle = dialGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Track
     ctx.beginPath();
     ctx.arc(cx, cy, R, startAngle, endAngle);
-    ctx.strokeStyle = C.track;
-    ctx.lineWidth   = 12;
+    ctx.strokeStyle = 'rgba(26, 38, 70, 0.65)';
+    ctx.lineWidth   = 16;
     ctx.lineCap     = 'round';
     ctx.stroke();
 
-    /* Redline zone */
+    // Redline arc
     const redStart = startAngle + arcRange * redlineFrac;
     ctx.beginPath();
     ctx.arc(cx, cy, R, redStart, endAngle);
-    ctx.strokeStyle = 'rgba(255,34,68,0.35)';
-    ctx.lineWidth   = 12;
+    ctx.strokeStyle = 'rgba(255, 34, 68, 0.4)';
+    ctx.lineWidth   = 16;
+    ctx.lineCap     = 'round';
     ctx.stroke();
 
-    /* Value arc */
+    // 3. Value arc & Needle light trail
     const rpmFrac = clamp(rpm / maxRPM, 0, 1);
     const fillEnd = startAngle + arcRange * rpmFrac;
-    if (rpmFrac > 0) {
-      const isRed = rpm >= 6500;
+    const isRed = rpm >= 6500;
+
+    if (rpmFrac > 0.01) {
+      // Translucent light sweep cone
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R - 8, startAngle, fillEnd);
+      ctx.closePath();
+      const sweepGrad = ctx.createRadialGradient(cx, cy, 20, cx, cy, R);
+      sweepGrad.addColorStop(0, 'rgba(255, 170, 0, 0.01)');
+      sweepGrad.addColorStop(1, isRed ? 'rgba(255, 34, 68, 0.15)' : 'rgba(255, 170, 0, 0.12)');
+      ctx.fillStyle = sweepGrad;
+      ctx.fill();
+      ctx.restore();
+
+      // Value arc
+      ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, R, startAngle, fillEnd);
-      ctx.strokeStyle = isRed ? C.red : C.amber;
-      ctx.lineWidth   = 12;
+      ctx.strokeStyle = isRed ? '#ff2244' : '#ffaa00';
+      ctx.lineWidth   = 16;
       ctx.lineCap     = 'round';
-      ctx.shadowColor = isRed ? C.red : C.amber;
-      ctx.shadowBlur  = 14;
+      ctx.shadowColor = isRed ? '#ff2244' : '#ffaa00';
+      ctx.shadowBlur  = 16;
       ctx.stroke();
-      ctx.shadowBlur = 0;
+      ctx.restore();
     }
 
-    /* Ticks */
+    // 4. Ticks
     for (let v = 0; v <= maxRPM; v += 500) {
       const frac  = v / maxRPM;
       const angle = startAngle + arcRange * frac;
       const isMajor = (v % 1000 === 0);
-      const inner = R - (isMajor ? 18 : 11);
-      const outer = R - 3;
+      const inner = R - (isMajor ? 20 : 12);
+      const outer = R - 6;
+
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
       ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
-      ctx.strokeStyle = v >= 6500 ? C.red : (isMajor ? C.white : C.textMuted);
-      ctx.lineWidth   = isMajor ? 1.5 : 0.8;
+      ctx.strokeStyle = v >= 6500 ? 'rgba(255, 34, 68, 0.85)' : (isMajor ? 'rgba(255, 255, 255, 0.85)' : 'rgba(100, 130, 175, 0.45)');
+      ctx.lineWidth   = isMajor ? 2.5 : 1.2;
       ctx.stroke();
 
       if (isMajor) {
-        const lR = R - 30;
-        ctx.font = `600 ${Math.round(W * 0.07)}px 'Courier New', monospace`;
-        ctx.fillStyle   = v >= 6500 ? C.red : C.textMuted;
+        const lR = R - 34;
+        ctx.font = Math.round(W * 0.045) + 'px sans-serif';
+        ctx.fillStyle   = v >= 6500 ? '#ff4466' : (v <= rpm ? 'rgba(255, 255, 255, 0.95)' : 'rgba(120, 145, 185, 0.5)');
         ctx.textAlign   = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(String(v / 1000), cx + Math.cos(angle) * lR, cy + Math.sin(angle) * lR);
       }
     }
 
-    /* Needle */
+    // 5. Needle
     const needleAngle = startAngle + arcRange * rpmFrac;
+    const nLen = R - 16;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(needleAngle);
+    ctx.shadowColor = isRed ? '#ff2244' : '#ffaa00';
+    ctx.shadowBlur  = 14;
+
     ctx.beginPath();
-    ctx.moveTo(-14, 0);
-    ctx.lineTo(R - 16, 0);
-    ctx.strokeStyle = rpm >= 6500 ? C.red : C.amber;
-    ctx.lineWidth   = 2.5;
+    ctx.moveTo(-16, 0);
+    ctx.lineTo(nLen, 0);
+    ctx.strokeStyle = isRed ? '#ff2244' : '#ffaa00';
+    ctx.lineWidth   = 3.5;
     ctx.lineCap     = 'round';
-    ctx.shadowColor = rpm >= 6500 ? C.red : C.amber;
-    ctx.shadowBlur  = 10;
     ctx.stroke();
     ctx.restore();
 
-    /* Pivot */
+    // 6. Chrome Pivot
     ctx.beginPath();
-    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
-    ctx.fillStyle = C.white;
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f172a';
     ctx.fill();
 
-    /* Digital readout */
-    const rpmK = (rpm / 1000).toFixed(1);
-    ctx.font = `700 ${Math.round(W * 0.17)}px 'Courier New', monospace`;
-    ctx.fillStyle = rpm >= 6500 ? C.red : C.amber;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor  = rpm >= 6500 ? C.red : C.amber;
-    ctx.shadowBlur   = 12;
-    ctx.fillText(rpmK, cx, cy - R * 0.26);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fillStyle = isRed ? '#ff2244' : '#ffaa00';
+    ctx.shadowColor = isRed ? '#ff2244' : '#ffaa00';
+    ctx.shadowBlur = 10;
+    ctx.fill();
     ctx.shadowBlur = 0;
 
-    ctx.font = `500 ${Math.round(W * 0.08)}px sans-serif`;
-    ctx.fillStyle = C.textMuted;
-    ctx.fillText('×1000 rpm', cx, cy - R * 0.26 + W * 0.12);
+    // 7. Large Digital RPM Readout
+    const rpmK = (rpm / 1000).toFixed(1);
+    ctx.save();
+    ctx.font = '800 ' + Math.round(W * 0.22) + 'px sans-serif';
+    ctx.fillStyle = isRed ? '#ff2244' : '#ffaa00';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor  = isRed ? 'rgba(255, 34, 68, 0.6)' : 'rgba(255, 170, 0, 0.5)';
+    ctx.shadowBlur   = 16;
+    ctx.fillText(rpmK, cx, cy - R * 0.16);
+    ctx.restore();
+
+    ctx.font = Math.round(W * 0.045) + 'px sans-serif';
+    ctx.fillStyle = 'rgba(140, 170, 210, 0.8)';
+    ctx.textAlign = 'center';
+    ctx.fillText('RPM x 1000', cx, cy - R * 0.16 + W * 0.14);
   }
 
-  /* ── Gear Indicator ───────────────────────────────────────── */
   drawGearIndicator (gear) {
     const el = document.getElementById('gear-indicator');
-    if (!el) return;
     const display = (gear === 0 || gear === 'N') ? 'N'
                   : (gear === 'R')               ? 'R'
                   : (gear === 'P')               ? 'P'
                   : String(gear);
-    el.textContent = display;
-    el.style.color = gear === 'R' ? C.red
-                   : gear === 'N' ? C.amber
-                   : gear === 'P' ? C.textMuted
-                   : C.cyan;
+    if (el) {
+      el.textContent = display;
+      el.style.color = gear === 'R' ? C.red
+                     : gear === 'N' ? C.amber
+                     : gear === 'P' ? C.textMuted
+                     : C.cyan;
+    }
+    document.querySelectorAll('.gear-btn').forEach(btn => {
+      const g = btn.dataset.gear;
+      const isActive = (display === g) || (display >= '1' && display <= '8' && (g === 'D' || g === 'S'));
+      btn.classList.toggle('active', isActive);
+      if (g === 'R') btn.classList.toggle('gear-r', isActive);
+    });
   }
 
   /* ── Battery Bar ──────────────────────────────────────────── */
@@ -864,4 +961,95 @@ document.addEventListener('DOMContentLoaded', () => {
       setDriveMode(btn.dataset.mode);
     });
   });
+  // Gear buttons
+  document.querySelectorAll('.gear-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = btn.dataset.gear;
+      state.gear = isNaN(g) ? g : Number(g);
+      document.querySelectorAll('.gear-btn').forEach(b => b.classList.toggle('active', b === btn));
+      if (window.__audioEngine) window.__audioEngine.playChime(440, 0.08);
+    });
+  });
+
+  // Speed Limit +/-
+  const btnLimUp = document.getElementById('btn-limit-up');
+  const btnLimDn = document.getElementById('btn-limit-down');
+  if (btnLimUp) {
+    btnLimUp.addEventListener('click', () => {
+      state.speed_limit_kmh = Math.min(200, (state.speed_limit_kmh || 100) + 10);
+      const val = document.getElementById('speed-limit-val');
+      if (val) val.textContent = state.speed_limit_kmh;
+      if (window.__audioEngine) window.__audioEngine.playChime(880, 0.05);
+    });
+  }
+  if (btnLimDn) {
+    btnLimDn.addEventListener('click', () => {
+      state.speed_limit_kmh = Math.max(30, (state.speed_limit_kmh || 100) - 10);
+      const val = document.getElementById('speed-limit-val');
+      if (val) val.textContent = state.speed_limit_kmh;
+      if (window.__audioEngine) window.__audioEngine.playChime(660, 0.05);
+    });
+  }
+
+  // ACC Target Distance +/-
+  const btnAccUp = document.getElementById('btn-acc-up');
+  const btnAccDn = document.getElementById('btn-acc-down');
+  if (btnAccUp) {
+    btnAccUp.addEventListener('click', () => {
+      state.acc_distance_m = Math.min(100, (state.acc_distance_m || 50) + 5);
+      const val = document.getElementById('acc-distance-val');
+      if (val) val.textContent = state.acc_distance_m + ' m';
+      if (window.__audioEngine) window.__audioEngine.playChime(750, 0.05);
+    });
+  }
+  if (btnAccDn) {
+    btnAccDn.addEventListener('click', () => {
+      state.acc_distance_m = Math.max(15, (state.acc_distance_m || 50) - 5);
+      const val = document.getElementById('acc-distance-val');
+      if (val) val.textContent = state.acc_distance_m + ' m';
+      if (window.__audioEngine) window.__audioEngine.playChime(550, 0.05);
+    });
+  }
+
+  // Cockpit Lighting & Hazard Controls
+  const btnAuto = document.getElementById('btn-lights-auto');
+  const btnHigh = document.getElementById('btn-lights-high');
+  const btnHazard = document.getElementById('btn-hazard');
+  let hazardActive = false;
+  let hazardTimer = null;
+
+  if (btnHazard) {
+    btnHazard.addEventListener('click', () => {
+      hazardActive = !hazardActive;
+      btnHazard.classList.toggle('active', hazardActive);
+      if (hazardActive) {
+        if (window.__audioEngine) window.__audioEngine.startTurnSignal();
+        hazardTimer = setInterval(() => {
+          state.lane_dep_L = !state.lane_dep_L;
+          state.lane_dep_R = state.lane_dep_L;
+        }, 400);
+      } else {
+        clearInterval(hazardTimer);
+        state.lane_dep_L = false;
+        state.lane_dep_R = false;
+        if (window.__audioEngine) window.__audioEngine.stopTurnSignal();
+      }
+    });
+  }
+  if (btnHigh) {
+    btnHigh.addEventListener('click', () => {
+      btnHigh.classList.toggle('active');
+      if (window.__roadVision) {
+        window.__roadVision.highBeam = btnHigh.classList.contains('active');
+      }
+      if (window.__audioEngine) window.__audioEngine.playChime(900, 0.08);
+    });
+  }
+  if (btnAuto) {
+    btnAuto.addEventListener('click', () => {
+      btnAuto.classList.toggle('active');
+      if (window.__audioEngine) window.__audioEngine.playChime(600, 0.08);
+    });
+  }
 });
+

@@ -107,14 +107,22 @@
           <div class="bspot-indicator" id="bspot-right">BLIND SPOT<br>RIGHT</div>
         </div>
 
-        <div class="adas-row" style="margin-top:0.4rem;">
+        <div class="adas-row" style="margin-top:0.4rem; justify-content:space-between;">
           <div style="font-size:0.65rem; color:var(--text-secondary);">SPEED LIMIT:</div>
-          <div style="border:2px solid var(--accent-red); border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:900; font-family:var(--font-mono); color:#fff; font-size:0.75rem;" id="speed-limit-val">100</div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="limit-adjust-btn" id="btn-limit-down" title="Lower speed limit (CAN 0x201)">−</button>
+            <div style="border:2px solid var(--accent-red); border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:900; font-family:var(--font-mono); color:#fff; font-size:0.75rem;" id="speed-limit-val">100</div>
+            <button class="limit-adjust-btn" id="btn-limit-up" title="Raise speed limit (CAN 0x201)">+</button>
+          </div>
         </div>
 
-        <div id="acc-distance-wrap" style="margin-top:0.4rem;">
-          <span>ACC TARGET:</span>
-          <span id="acc-distance-val">50 m</span>
+        <div id="acc-distance-wrap" style="margin-top:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.65rem; color:var(--text-secondary);">ACC DISTANCE:</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="limit-adjust-btn" id="btn-acc-down" title="Decrease follow distance">−</button>
+            <span id="acc-distance-val" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--accent-cyan); font-weight:700;">50 m</span>
+            <button class="limit-adjust-btn" id="btn-acc-up" title="Increase follow distance">+</button>
+          </div>
         </div>
       </div>
 
@@ -165,18 +173,29 @@
 
       <!-- Center Telemetry & 2.5D Road Vision Column -->
       <div id="center-col" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.4rem; padding:0.4rem;">
-        <div style="display:flex; align-items:center; gap:0.6rem;">
-          <div id="gear-indicator">P</div>
-          <div>
-            <div id="gear-label">CURRENT GEAR</div>
-            <div id="active-drive-mode-label" class="neon-cyan" style="font-size:0.65rem; font-weight:800; letter-spacing:0.1em;">NORMAL</div>
+        <!-- Interactive PRNDS Transmission Selector -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:0.3rem;">
+          <div class="prnds-bar" id="prnds-bar">
+            <button class="gear-btn" data-gear="P">P</button>
+            <button class="gear-btn" data-gear="R">R</button>
+            <button class="gear-btn" data-gear="N">N</button>
+            <button class="gear-btn active" data-gear="D">D</button>
+            <button class="gear-btn" data-gear="S">S</button>
           </div>
+          <div id="active-drive-mode-label" class="neon-cyan" style="font-size:0.65rem; font-weight:800; letter-spacing:0.12em;">NORMAL CRUISE</div>
         </div>
 
         <!-- 2.5D Highway Road Vision Canvas -->
         <div id="road-vision-wrap">
           <span class="road-vision-badge">2.5D RADAR VISION</span>
           <canvas id="road-vision-canvas"></canvas>
+        </div>
+
+        <!-- Cockpit Quick Lighting & Hazard Bar -->
+        <div class="cockpit-controls-bar">
+          <button class="cockpit-ctrl-btn active" id="btn-lights-auto" title="Automatic adaptive matrix lights">💡 AUTO</button>
+          <button class="cockpit-ctrl-btn" id="btn-lights-high" title="Toggle laser high beam projection">🔆 HIGH BEAM</button>
+          <button class="cockpit-ctrl-btn hazard" id="btn-hazard" title="Emergency dual turn hazard blinkers">⚠️ HAZARD</button>
         </div>
 
         <div id="battery-wrap" style="width:100%; max-width:200px;">
