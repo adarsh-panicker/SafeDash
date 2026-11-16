@@ -114,6 +114,40 @@ SafeDash proves **Freedom from Interference (FFI)** using the native microkernel
 
 ---
 
+### 9. Safety Fault Lab & 1-Click Automated ISO 26262 ASIL-D Showcase
+> Interactive engineering suite to inject CPU starvation, infotainment subsystem crashes, sensor dropouts, and memory leaks. Proves QNX Adaptive Partitioning Scheduler (APS) keeps safety gauges operating with zero jitter and zero frame drop.
+
+<p align="center">
+  <img src="docs/images/09_fault_injection_active.png" alt="Safety Fault Lab and Active Collision Alert" width="95%" />
+</p>
+
+---
+
+### 10. Interactive Keyboard Manual Drive Mode (W/S/A/D)
+> Allows developers and safety auditors to manually pilot the vehicle with throttle, regenerative braking, steering, and emergency stop directly via keyboard controls.
+
+<p align="center">
+  <img src="docs/images/10_manual_drive_hud.png" alt="Interactive Manual Drive Mode" width="95%" />
+</p>
+
+---
+
+### 11. QNX Neutrino RTOS Health Monitor & Adaptive Partitioning
+> Low-level QNX kernel diagnostics displaying real-time thread priority mapping (Priority 28-30 for safety threads vs 10 for infotainment), microkernel message latency (&lt;20ms), and APS guaranteed CPU budget distribution.
+
+<p align="center">
+  <img src="docs/images/11_qnx_health_aps_panel.png" alt="QNX Real-Time Health and APS Budget Allocation" width="95%" />
+</p>
+
+---
+
+### 🎥 Official Demo Video
+> Full HD walkthrough demonstrating real-time 60 FPS rendering, drive modes, DMS distraction alert, TPMS chassis, CAN packet sniffer, and automated ASIL-D fault injection.
+> 
+> 📁 **Video File:** [`docs/safedash_demo_video.mp4`](docs/safedash_demo_video.mp4) (Full HD 1080p • H.264 • 110s)
+
+---
+
 ## 🏛️ System Architecture
 
 ```
