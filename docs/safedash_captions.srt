@@ -1,0 +1,111 @@
+1
+00:00:00,000 --> 00:00:03,800
+Hello, my name is Adarsh Panicker, and welcome to SafeDash,
+
+2
+00:00:03,800 --> 00:00:07,500
+an ISO 26262 ASIL-D fail-safe digital instrument cluster
+
+3
+00:00:07,500 --> 00:00:12,000
+and telematics broker built on BlackBerry QNX Neutrino RTOS SDP 8.0.
+
+4
+00:00:12,000 --> 00:00:16,500
+In modern vehicles, safety gauges and infotainment share a single multicore SoC.
+
+5
+00:00:16,500 --> 00:00:20,500
+SafeDash proves Freedom from Interference,
+
+6
+00:00:20,500 --> 00:00:24,800
+ensuring critical safety dials never freeze or drop below 60 frames per second.
+
+7
+00:00:24,800 --> 00:00:29,500
+With our drive mode selector, the cluster instantly shifts into SPORT Mode,
+
+8
+00:00:29,500 --> 00:00:34,000
+rendering an aggressive molten red cockpit glow and high RPM response.
+
+9
+00:00:34,000 --> 00:00:40,500
+Switching to ECO Mode activates an emerald efficiency theme, prioritizing regenerative energy recovery.
+
+10
+00:00:40,500 --> 00:00:45,500
+And in AUTOPILOT Mode, the interface transitions into an ambient autonomous HUD,
+
+11
+00:00:45,500 --> 00:00:48,800
+before smoothly returning to standard highway cruise.
+
+12
+00:00:48,800 --> 00:00:52,000
+SafeDash offers three dynamic cockpit perspectives.
+
+13
+00:00:52,000 --> 00:00:59,000
+Here is our ADAS Focus panoramic layout, rendering ego-vehicle lighting projection and real-time millimeter-wave radar tracking.
+
+14
+00:00:59,000 --> 00:01:06,000
+For performance driving, TRACK Mode centers our 2D dynamic G-force accelerometer and lap telemetry.
+
+15
+00:01:06,000 --> 00:01:10,500
+Drivers can seamlessly return to the classic dual-gauge view at any time.
+
+16
+00:01:10,500 --> 00:01:15,800
+A single touch transforms the right tachometer into a modern EV Power Meter,
+
+17
+00:01:15,800 --> 00:01:21,000
+visualizing instantaneous traction delivery and green regenerative braking in kilowatts.
+
+18
+00:01:21,000 --> 00:01:25,500
+For DC fast-charging, SafeDash includes Battery Thermal Preconditioning,
+
+19
+00:01:25,500 --> 00:01:31,000
+actively ramping pack temperature to 32 degrees Celsius for optimal 350-kilowatt charging curves.
+
+20
+00:01:31,000 --> 00:01:37,500
+To meet upcoming Euro NCAP 2026 mandates, SafeDash monitors driver gaze and attention in real time.
+
+21
+00:01:37,500 --> 00:01:44,500
+We also calculate live road surface friction — from dry asphalt down to icy conditions — alongside a gyroscopic road pitch angle.
+
+22
+00:01:44,500 --> 00:01:53,500
+Our side deck provides FMVSS 138 compliant 4-wheel tire pressure monitoring, tracking individual tire pressures and cavity temperatures.
+
+23
+00:01:53,500 --> 00:02:04,000
+Next, our OBD-II and UDS Diagnostic Console captures freeze-frame telemetry snapshots for diagnostic trouble codes and supports Service $04 fault erasure.
+
+24
+00:02:04,000 --> 00:02:09,500
+Engineers can inspect live 11-bit CAN-FD traffic directly from the QNX driver layer.
+
+25
+00:02:09,500 --> 00:02:15,000
+Finally, our Safety Fault Lab injects full CPU starvation and subsystem crashes.
+
+26
+00:02:15,000 --> 00:02:20,000
+As you can see, the QNX Adaptive Partitioning Scheduler guarantees our 60% safety budget,
+
+27
+00:02:20,000 --> 00:02:24,200
+keeping the cluster butter-smooth with sub-20 millisecond watchdog recovery.
+
+28
+00:02:24,200 --> 00:02:29,380
+SafeDash is fully open-source and ready for automotive deployment. Thank you!

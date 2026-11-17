@@ -141,10 +141,11 @@ SafeDash proves **Freedom from Interference (FFI)** using the native microkernel
 
 ---
 
-### 🎥 Official Demo Video
-> Full HD walkthrough demonstrating real-time 60 FPS rendering, drive modes, DMS distraction alert, TPMS chassis, CAN packet sniffer, and automated ASIL-D fault injection.
+### 🎥 Official Demo Video (Narrated by Adarsh Panicker)
+> Full HD 1080p walkthrough with synchronized audio narration, demonstrating real-time 60 FPS rendering, drive modes, DMS distraction alert, TPMS chassis, CAN packet sniffer, and automated ASIL-D fault injection.
 > 
-> 📁 **Video File:** [`docs/safedash_demo_video.mp4`](docs/safedash_demo_video.mp4) (Full HD 1080p • H.264 • 110s)
+> 📁 **Final Video:** [`docs/safedash_final_youtube.mp4`](docs/safedash_final_youtube.mp4) (Full HD 1080p • H.264 / AAC • 2m 29s)  
+> 📝 **Closed Captions:** [`docs/safedash_captions.srt`](docs/safedash_captions.srt)
 
 ---
 
